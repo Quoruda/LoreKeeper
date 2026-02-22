@@ -1,12 +1,15 @@
+import Sidebar from './components/layout/Sidebar';
+import MainEditor from './components/layout/MainEditor';
+import AIPanel from './components/layout/AIPanel';
+
 function App() {
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4 text-primary-500">LoreKeeper</h1>
-        <p className="text-lg text-gray-400">Environnement d'écriture initialisé avec succès.</p>
-      </div>
+    <div className="flex h-screen w-screen overflow-hidden text-gray-100 bg-gray-900 select-none">
+      <Sidebar />
+      <MainEditor />
+      <AIPanel />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
