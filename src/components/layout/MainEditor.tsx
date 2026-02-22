@@ -1,18 +1,79 @@
-import { Info } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { useProject } from '../../contexts/ProjectContext';
 
 export default function MainEditor() {
+    const { projectPath, currentChapter } = useProject();
+    const [content, setContent] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Charger le contenu du chapitre quand il change
+    useEffect(() => {
+        if (projectPath && currentChapter) {
+            const loadChapter = async () => {
+                try {
+                    const fileContent: string = await invoke('read_file', {
+                        path: `${projectPath}/chapters/${currentChapter}`
+                    });
+                    setContent(fileContent);
+                } catch (error) {
+                    console.error("Erreur de lecture:", error);
+                    setContent('');
+                }
+            };
+            loadChapter();
+        } else {
+            setContent('');
+        }
+    }, [projectPath, currentChapter]);
+
+    // Sauvegarde automatique (Debounce de 1 seconde)
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newContent = e.target.value;
+        setContent(newContent);
+        setIsSaving(true);
+
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+        saveTimeoutRef.current = setTimeout(async () => {
+            if (projectPath && currentChapter) {
+                try {
+                    await invoke('write_file', {
+                        path: `${projectPath}/chapters/${currentChapter}`,
+                        content: newContent
+                    });
+                } catch (error) {
+                    console.error("Erreur de sauvegarde:", error);
+                } finally {
+                    setIsSaving(false);
+                }
+            }
+        }, 1000); // Sauvegarde 1s après la dernière frappe
+    };
+
+    // Si aucun chapitre n'est sélectionné
+    if (!currentChapter) {
+        return (
+            <div className="flex-1 flex flex-col h-full bg-[#0d1117] items-center justify-center">
+                <p className="text-gray-500">Sélectionnez ou créez un chapitre pour commencer à écrire.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="flex-1 flex flex-col h-full bg-[#0d1117]">
             {/* Topbar for Editor */}
             <div className="h-16 border-b border-gray-800 flex items-center px-8 shrink-0 justify-between">
                 <input
                     type="text"
-                    defaultValue="Chapitre 1 : Le Réveil"
-                    className="bg-transparent text-xl font-semibold text-gray-100 placeholder-gray-600 outline-none w-full"
+                    value={currentChapter.replace('.md', '')}
+                    readOnly
+                    className="bg-transparent text-xl font-semibold text-gray-100 outline-none w-full"
                 />
                 <div className="flex items-center space-x-2 text-xs text-gray-500">
-                    <span>Automatiquement sauvegardé</span>
-                    <div className="w-2 h-2 rounded-full bg-green-500 opacity-50"></div>
+                    <span>{isSaving ? "Sauvegarde en cours..." : "Sauvegardé"}</span>
+                    <div className={`w-2 h-2 rounded-full ${isSaving ? 'bg-amber-500 animate-pulse' : 'bg-green-500 opacity-50'}`}></div>
                 </div>
             </div>
 
@@ -22,7 +83,8 @@ export default function MainEditor() {
                     <textarea
                         className="w-full h-full bg-transparent text-gray-300 text-lg leading-relaxed resize-none outline-none font-serif"
                         placeholder="Écrivez votre histoire ici..."
-                        defaultValue="La lumière de l'aube filtrait à travers les volets entrebâillés, dessinant de longues lignes dorées sur le plancher en bois usé. Elara ouvrit les yeux, l'esprit encore embrumé par les restes de son rêve. Ce jour n'était pas un jour ordinaire."
+                        value={content}
+                        onChange={handleChange}
                         spellCheck="false"
                     />
                 </div>
