@@ -1,21 +1,23 @@
 import { Book, Users, ScrollText, BarChart2, Settings, ChevronRight, FileText, Check, X } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
-const navigation = [
-    { name: 'Chapitres', icon: Book, current: true },
-    { name: 'Personnages', icon: Users, current: false },
-    { name: 'Lore', icon: ScrollText, current: false },
-    { name: 'Statistiques', icon: BarChart2, current: false },
+const navigationKeys = [
+    { key: 'sidebar.nav.chapters', icon: Book, current: true },
+    { key: 'sidebar.nav.characters', icon: Users, current: false },
+    { key: 'sidebar.nav.lore', icon: ScrollText, current: false },
+    { key: 'sidebar.nav.statistics', icon: BarChart2, current: false },
 ];
 
 export default function Sidebar({ projectPath }: { projectPath: string }) {
+    const { t } = useTranslation();
     const { chapters, currentChapter, setCurrentChapter, refreshChapters } = useProject();
     const [isCreatingChapter, setIsCreatingChapter] = useState(false);
     const [newChapterTitle, setNewChapterTitle] = useState("");
 
     // Extraire juste le nom final du dossier pour le titre
-    const projectName = projectPath.split(/[/\\]/).pop() || "Nouveau Projet";
+    const projectName = projectPath.split(/[/\\]/).pop() || t('sidebar.newProjectText');
 
     const handleCreateSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -40,7 +42,7 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
             setIsCreatingChapter(false);
         } catch (error) {
             console.error("Erreur lors de la création du chapitre:", error);
-            alert("Impossible de créer le fichier: " + error);
+            alert(t('sidebar.errCreate') + " " + error);
         }
     };
 
@@ -49,7 +51,7 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
             {/* Header Logo & Project Name */}
             <div className="h-16 flex flex-col justify-center px-6 border-b border-gray-800 shrink-0">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-primary-500 to-indigo-500 bg-clip-text text-transparent leading-tight">
-                    LoreKeeper
+                    {t('sidebar.appName')}
                 </h1>
                 <p className="text-xs text-gray-400 truncate mt-0.5" title={projectPath}>
                     {projectName}
@@ -58,19 +60,19 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
 
             {/* Navigation */}
             <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-                {navigation.map((item) => {
+                {navigationKeys.map((item) => {
                     const Icon = item.icon;
                     return (
                         <a
-                            key={item.name}
+                            key={item.key}
                             href="#"
-                            className={`flex items - center px - 3 py - 2.5 text - sm font - medium rounded - lg transition - colors ${item.current
+                            className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${item.current
                                 ? 'bg-gray-800 text-white'
                                 : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
-                                } `}
+                                }`}
                         >
                             <Icon className="w-5 h-5 mr-3 shrink-0" />
-                            {item.name}
+                            {t(item.key)}
                             {item.current && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
                         </a>
                     );
@@ -79,7 +81,7 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                 {/* Dynamic sub-items for Chapters */}
                 <div className="mt-4 pt-4 border-t border-gray-800/50">
                     <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                        Livre Actuel
+                        {t('sidebar.currentBook')}
                     </p>
                     <div className="space-y-1">
                         {chapters.map((chapterFile) => (
@@ -105,7 +107,7 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                                     type="text"
                                     value={newChapterTitle}
                                     onChange={(e) => setNewChapterTitle(e.target.value)}
-                                    placeholder="Nom du chapitre..."
+                                    placeholder={t('sidebar.chapterNamePlaceholder')}
                                     className="flex-1 bg-transparent text-sm text-white outline-none min-w-0"
                                     onBlur={() => {
                                         if (!newChapterTitle.trim()) setIsCreatingChapter(false);
@@ -124,7 +126,7 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                                 className="w-full flex items-center px-3 py-2 text-sm text-gray-500 hover:text-white hover:bg-gray-800/30 rounded-lg italic group"
                             >
                                 <span className="w-4 h-4 mr-3 shrink-0 text-center font-bold text-lg leading-none">+</span>
-                                Nouveau chapitre
+                                {t('sidebar.newChapter')}
                             </button>
                         )}
                     </div>
@@ -135,7 +137,7 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
             <div className="p-4 border-t border-gray-800 shrink-0">
                 <a href="#" className="flex items-center px-3 py-2 text-sm font-medium text-gray-400 rounded-lg hover:text-white hover:bg-gray-800/50 transition-colors">
                     <Settings className="w-5 h-5 mr-3 shrink-0" />
-                    Paramètres
+                    {t('sidebar.settings')}
                 </a>
             </div>
         </div>

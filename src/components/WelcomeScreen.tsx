@@ -2,12 +2,14 @@ import { FolderOpen, Book, Check } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface WelcomeScreenProps {
     onProjectOpened: (path: string) => void;
 }
 
 export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
+    const { t } = useTranslation();
     const [manualPath, setManualPath] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
@@ -16,14 +18,14 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             const selected = await open({
                 directory: true,
                 multiple: false,
-                title: "Sélectionner le dossier du projet LoreKeeper"
+                title: t('welcome.title')
             });
             if (selected && typeof selected === 'string') {
                 setManualPath(selected);
             }
         } catch (error) {
-            console.error("Erreur de dialogue natif:", error);
-            alert("Erreur lors de l'ouverture de l'explorateur : " + error);
+            console.error(t('welcome.errorNative'), error);
+            alert(t('welcome.errorNative') + " " + error);
         }
     };
 
@@ -34,8 +36,8 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             await invoke('init_project', { path: manualPath.trim() });
             onProjectOpened(manualPath.trim());
         } catch (error) {
-            console.error("Erreur d'initialisation:", error);
-            alert("Erreur: " + error);
+            console.error(t('welcome.errorInit'), error);
+            alert(t('welcome.errorInit') + " " + error);
             setIsLoading(false);
         }
     };
@@ -51,13 +53,13 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     LoreKeeper
                 </h1>
                 <p className="text-gray-400 mb-8 text-sm">
-                    Sélectionnez ou indiquez le chemin vers le dossier de votre livre.
+                    {t('welcome.description')}
                 </p>
 
                 <div className="space-y-4 text-left">
                     <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1 ml-1" htmlFor="path">
-                            Chemin du dossier projet
+                            {t('welcome.pathLabel')}
                         </label>
                         <div className="flex space-x-2">
                             <input
@@ -65,13 +67,13 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                                 type="text"
                                 value={manualPath}
                                 onChange={(e) => setManualPath(e.target.value)}
-                                placeholder="/home/audrick/Documents/MonLivre"
+                                placeholder={t('welcome.pathPlaceholder')}
                                 className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 outline-none focus:border-primary-500 transition-colors"
                             />
                             <button
                                 onClick={handleBrowse}
                                 className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm font-medium transition-colors"
-                                title="Parcourir"
+                                title={t('welcome.browse')}
                             >
                                 <FolderOpen className="w-4 h-4 text-gray-300" />
                             </button>
@@ -88,14 +90,14 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                         ) : (
                             <>
                                 <Check className="w-5 h-5 mr-2" />
-                                Ouvrir le projet
+                                {t('welcome.openBtn')}
                             </>
                         )}
                     </button>
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-gray-800/50 text-xs text-gray-500 text-center">
-                    <p>Si le bouton Parcourir ne fonctionne pas, vous pouvez directement coller le chemin absolu du dossier dans le champ de texte.</p>
+                    <p>{t('welcome.fallbackDesc')}</p>
                 </div>
             </div>
         </div>

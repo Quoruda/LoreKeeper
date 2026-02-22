@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProject } from '../../contexts/ProjectContext';
+import { useTranslation } from 'react-i18next';
 
 export default function MainEditor() {
+    const { t } = useTranslation();
     const { projectPath, currentChapter } = useProject();
     const [content, setContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -56,7 +58,7 @@ export default function MainEditor() {
     if (!currentChapter) {
         return (
             <div className="flex-1 flex flex-col h-full bg-[#0d1117] items-center justify-center">
-                <p className="text-gray-500">Sélectionnez ou créez un chapitre pour commencer à écrire.</p>
+                <p className="text-gray-500">{t('editor.noChapterDesc')}</p>
             </div>
         );
     }
@@ -72,7 +74,7 @@ export default function MainEditor() {
                     className="bg-transparent text-xl font-semibold text-gray-100 outline-none w-full"
                 />
                 <div className="flex items-center space-x-2 text-xs text-gray-500">
-                    <span>{isSaving ? "Sauvegarde en cours..." : "Sauvegardé"}</span>
+                    <span>{isSaving ? t('editor.saving') : t('editor.saved')}</span>
                     <div className={`w-2 h-2 rounded-full ${isSaving ? 'bg-amber-500 animate-pulse' : 'bg-green-500 opacity-50'}`}></div>
                 </div>
             </div>
@@ -82,7 +84,7 @@ export default function MainEditor() {
                 <div className="max-w-3xl mx-auto h-full flex flex-col">
                     <textarea
                         className="w-full h-full bg-transparent text-gray-300 text-lg leading-relaxed resize-none outline-none font-serif"
-                        placeholder="Écrivez votre histoire ici..."
+                        placeholder={t('editor.placeholder')}
                         value={content}
                         onChange={handleChange}
                         spellCheck="false"
