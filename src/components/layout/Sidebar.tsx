@@ -18,10 +18,30 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
         currentChapter, setCurrentChapter,
         currentComponentId, setCurrentComponentId,
         viewMode, setViewMode,
-        refreshFiles
+        createItem,
+        reorderItem
     } = useProject();
     const [isCreatingChapter, setIsCreatingChapter] = useState(false);
     const [newChapterTitle, setNewChapterTitle] = useState("");
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', index.toString());
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = async (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === index) return;
+        await reorderItem(draggedIndex, index, viewMode);
+        setDraggedIndex(null);
+    };
 
     // Extraire juste le nom final du dossier pour le titre
     const projectName = projectPath.split(/[/\\]/).pop() || t('sidebar.newProjectText');
@@ -35,42 +55,13 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
             return;
         }
 
-        let fileName = `${title.replace(/[/\\?%*:|"<>]/g, '-')}`;
-        let folder = 'chapters';
-        let content = '';
-
-        if (viewMode === 'chapters') {
-            fileName += '.md';
-            content = `# ${title}\n\n`;
-        } else if (viewMode === 'characters') {
-            fileName += '.json';
-            folder = 'characters';
-            content = JSON.stringify({ id: fileName.replace('.json', ''), name: title, role: "", description: "", appearance: "", personality: "" }, null, 2);
-        } else if (viewMode === 'lore') {
-            fileName += '.json';
-            folder = 'lore';
-            content = JSON.stringify({ id: fileName.replace('.json', ''), title: title, category: "", content: "" }, null, 2);
-        }
-
         try {
-            const { invoke } = await import('@tauri-apps/api/core');
-            await invoke('write_file', {
-                path: `${projectPath}/${folder}/${fileName}`,
-                content
-            });
-            await refreshFiles();
-
-            if (viewMode === 'chapters') {
-                setCurrentChapter(fileName);
-            } else {
-                setCurrentComponentId(fileName);
-            }
-
+            await createItem(title, viewMode);
             // Re-intialiser
             setNewChapterTitle("");
             setIsCreatingChapter(false);
         } catch (error) {
-            console.error("Erreur lors de la création du chapitre:", error);
+            console.error("Erreur lors de la création:", error);
             alert(t('sidebar.errCreate') + " " + error);
         }
     };
@@ -120,50 +111,62 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                     </p>
                     <div className="space-y-1">
                         {/* Chapters */}
-                        {viewMode === 'chapters' && chapters.map((file) => (
+                        {viewMode === 'chapters' && chapters.map((item, index) => (
                             <button
-                                key={file}
-                                onClick={() => setCurrentChapter(file)}
-                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentChapter === file
+                                key={item.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, index)}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDrop(e, index)}
+                                onClick={() => setCurrentChapter(item.id)}
+                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentChapter === item.id
                                     ? 'text-white bg-primary-500/20'
                                     : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
-                                    }`}
+                                    } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
                             >
-                                <FileText className={`w-4 h-4 mr-3 shrink-0 ${currentChapter === file ? 'text-primary-400' : 'text-gray-500 group-hover:text-primary-400'
+                                <FileText className={`w-4 h-4 mr-3 shrink-0 ${currentChapter === item.id ? 'text-primary-400' : 'text-gray-500 group-hover:text-primary-400'
                                     }`} />
-                                <span className="truncate">{file.replace('.md', '')}</span>
+                                <span className="truncate">{item.title}</span>
                             </button>
                         ))}
 
                         {/* Characters */}
-                        {viewMode === 'characters' && characters.map((file) => (
+                        {viewMode === 'characters' && characters.map((item, index) => (
                             <button
-                                key={file}
-                                onClick={() => setCurrentComponentId(file)}
-                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === file
+                                key={item.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, index)}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDrop(e, index)}
+                                onClick={() => setCurrentComponentId(item.id)}
+                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === item.id
                                     ? 'text-white bg-indigo-500/20'
                                     : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
-                                    }`}
+                                    } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
                             >
-                                <Users className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === file ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
+                                <Users className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
                                     }`} />
-                                <span className="truncate">{file.replace('.json', '')}</span>
+                                <span className="truncate">{item.title}</span>
                             </button>
                         ))}
 
                         {/* Lore */}
-                        {viewMode === 'lore' && lore.map((file) => (
+                        {viewMode === 'lore' && lore.map((item, index) => (
                             <button
-                                key={file}
-                                onClick={() => setCurrentComponentId(file)}
-                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === file
+                                key={item.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, index)}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDrop(e, index)}
+                                onClick={() => setCurrentComponentId(item.id)}
+                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === item.id
                                     ? 'text-white bg-indigo-500/20'
                                     : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
-                                    }`}
+                                    } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
                             >
-                                <ScrollText className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === file ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
+                                <ScrollText className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
                                     }`} />
-                                <span className="truncate">{file.replace('.json', '')}</span>
+                                <span className="truncate">{item.title}</span>
                             </button>
                         ))}
 

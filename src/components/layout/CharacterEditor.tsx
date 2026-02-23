@@ -7,7 +7,7 @@ import type { Character } from '../../types';
 
 export default function CharacterEditor() {
     const { t } = useTranslation();
-    const { projectPath, currentComponentId } = useProject();
+    const { projectPath, currentComponentId, renameItem } = useProject();
     const [character, setCharacter] = useState<Character | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,6 +92,7 @@ export default function CharacterEditor() {
                             type="text"
                             value={character.name}
                             onChange={(e) => handleChange('name', e.target.value)}
+                            onBlur={(e) => currentComponentId && renameItem(currentComponentId, e.target.value, 'characters')}
                             placeholder={t('charEditor.namePlaceholder')}
                             className="w-full bg-gray-900 border border-gray-800 focus:border-indigo-500 rounded-xl px-4 py-3 text-xl font-bold text-white outline-none transition-colors"
                         />

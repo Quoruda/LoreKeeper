@@ -15,3 +15,14 @@ export interface LoreEntry {
 }
 
 export type ViewMode = 'chapters' | 'characters' | 'lore';
+
+export interface RegistryItem {
+    id: string; // Identifier unique et nom du fichier
+    title: string; // Vrai titre (modifiable)
+}
+
+export interface Registry {
+    chapters: RegistryItem[];
+    characters: RegistryItem[];
+    lore: RegistryItem[];
+}

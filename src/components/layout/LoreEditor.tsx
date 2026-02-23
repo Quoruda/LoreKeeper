@@ -7,7 +7,7 @@ import type { LoreEntry } from '../../types';
 
 export default function LoreEditor() {
     const { t } = useTranslation();
-    const { projectPath, currentComponentId } = useProject();
+    const { projectPath, currentComponentId, renameItem } = useProject();
     const [lore, setLore] = useState<LoreEntry | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,6 +92,7 @@ export default function LoreEditor() {
                             type="text"
                             value={lore.title}
                             onChange={(e) => handleChange('title', e.target.value)}
+                            onBlur={(e) => currentComponentId && renameItem(currentComponentId, e.target.value, 'lore')}
                             placeholder={t('loreEditor.namePlaceholder')}
                             className="w-full bg-gray-900 border border-gray-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-xl font-bold text-white outline-none transition-colors"
                         />

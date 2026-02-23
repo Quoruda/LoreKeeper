@@ -64,3 +64,11 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
         Err(e) => Err(format!("Erreur lors de l'écriture du fichier : {}", e)),
     }
 }
+
+#[tauri::command]
+pub fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
+    match fs::rename(&old_path, &new_path) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("Erreur lors du renommage du fichier : {}", e)),
+    }
+}

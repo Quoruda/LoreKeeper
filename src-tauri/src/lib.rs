@@ -11,7 +11,8 @@ pub fn run() {
             commands::fs::init_project,
             commands::fs::list_files,
             commands::fs::read_file,
-            commands::fs::write_file
+            commands::fs::write_file,
+            commands::fs::rename_file
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
