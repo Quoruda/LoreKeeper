@@ -1,13 +1,14 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { ViewMode, Registry, RegistryItem } from '../types';
+import type { ViewMode, Registry, RegistryItem, ProjectStats } from '../types';
 
 interface ProjectContextType {
     projectPath: string;
     chapters: RegistryItem[];
     characters: RegistryItem[];
     lore: RegistryItem[];
+    stats: ProjectStats;
     refreshFiles: () => Promise<void>;
     createItem: (title: string, mode: ViewMode) => Promise<void>;
     renameItem: (id: string, newTitle: string, mode: ViewMode) => Promise<void>;
@@ -16,8 +17,10 @@ interface ProjectContextType {
     setCurrentChapter: (chapter: string | null) => void;
     currentComponentId: string | null;
     setCurrentComponentId: (id: string | null) => void;
-    viewMode: ViewMode;
-    setViewMode: (mode: ViewMode) => void;
+    viewMode: ViewMode | 'statistics';
+    setViewMode: (mode: ViewMode | 'statistics') => void;
+    updateDailyWordCount: (delta: number) => Promise<void>;
+    updateDailyGoal: (goal: number) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -26,9 +29,19 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
     const [chapters, setChapters] = useState<RegistryItem[]>([]);
     const [characters, setCharacters] = useState<RegistryItem[]>([]);
     const [lore, setLore] = useState<RegistryItem[]>([]);
+    const [stats, setStats] = useState<ProjectStats>({ dailyGoal: 500, history: {} });
     const [currentChapter, setCurrentChapter] = useState<string | null>(null);
     const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
-    const [viewMode, setViewMode] = useState<ViewMode>('chapters');
+    const [viewMode, setViewMode] = useState<ViewMode | 'statistics'>('chapters');
+
+    const slugify = (text: string) => {
+        return text.toString().toLowerCase()
+            .replace(/\s+/g, '-')           // Remplace les espaces par -
+            .replace(/[^\w\-]+/g, '')       // Retire tous les caractères non-word (pas de lettres, chiffres, underscores, tirets)
+            .replace(/\-\-+/g, '-')         // Remplace les multiples - par un seul
+            .replace(/^-+/, '')             // Retire les - du début
+            .replace(/-+$/, '');            // Retire les - de la fin
+    };
 
     const saveRegistry = async (newRegistry: Registry) => {
         try {
@@ -41,6 +54,18 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
             setLore(newRegistry.lore);
         } catch (error) {
             console.error("Erreur saveRegistry:", error);
+        }
+    };
+
+    const saveStats = async (newStats: ProjectStats) => {
+        try {
+            await invoke('write_file', {
+                path: `${projectPath}/stats.json`,
+                content: JSON.stringify(newStats, null, 2)
+            });
+            // NE PAS FAIRE setStats() ici. Sinon la résolution asynchrone écrase l'état avec d'anciennes versions quand on tape vite (Race condition).
+        } catch (error) {
+            console.error("Erreur saveStats:", error);
         }
     };
 
@@ -68,6 +93,17 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
                 console.error("Erreur de reconstruction du registre lorekeeper.json:", err);
             }
         }
+
+        try {
+            const statsContent: string = await invoke('read_file', { path: `${projectPath}/stats.json` });
+            const statsData = JSON.parse(statsContent) as ProjectStats;
+            setStats(statsData);
+        } catch {
+            // Si le fichier n'existe pas encore, on l'initialise
+            const initialStats = { dailyGoal: 500, history: {} };
+            await saveStats(initialStats);
+            setStats(initialStats);
+        }
     };
 
     const refreshFiles = useCallback(async () => {
@@ -77,7 +113,7 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
     const createItem = useCallback(async (title: string, mode: ViewMode) => {
         const timestamp = Date.now();
         // Slugification du titre pour en faire un identifiant de système de fichier sûr
-        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        const slug = slugify(title);
         const baseId = `${timestamp}_${slug || 'untitled'}`;
 
         const currentRegistry: Registry = { chapters, characters, lore };
@@ -122,7 +158,7 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         if (targetList[itemIndex].title === newTitle) return; // Ne rien faire si identique
 
         const timestamp = Date.now();
-        const slug = newTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        const slug = slugify(newTitle);
         const newBaseId = `${timestamp}_${slug || 'untitled'}`;
 
         let folder = mode;
@@ -158,6 +194,28 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         await saveRegistry(currentRegistry);
     }, [chapters, characters, lore, projectPath]);
 
+    const updateDailyWordCount = useCallback(async (delta: number) => {
+        if (delta === 0) return;
+        const today = new Date().toISOString().split('T')[0];
+
+        setStats(prev => {
+            const newStats = { ...prev, history: { ...prev.history } };
+            const currentCount = newStats.history[today] || 0;
+            // On s'assure que le compteur ne descend jamais en dessous de 0 (si l'utilisateur supprime plus que ce qu'il a écrit ce jour-là)
+            newStats.history[today] = Math.max(0, currentCount + delta);
+            saveStats(newStats); // Ne pas await pour ne pas bloquer l'UI
+            return newStats;
+        });
+    }, [projectPath]);
+
+    const updateDailyGoal = useCallback(async (goal: number) => {
+        setStats(prev => {
+            const newStats = { ...prev, history: { ...prev.history }, dailyGoal: Math.max(1, goal) };
+            saveStats(newStats);
+            return newStats;
+        });
+    }, [projectPath]);
+
     // Charge le registre au montage
     useEffect(() => {
         refreshFiles();
@@ -166,18 +224,20 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
     // Mémoïsation de la valeur du contexte pour éviter les re-rendus enfants inutiles
     const contextValue = useMemo(() => ({
         projectPath,
-        chapters, characters, lore,
+        chapters, characters, lore, stats,
         refreshFiles,
         createItem,
         renameItem,
         reorderItem,
         currentChapter, setCurrentChapter,
         currentComponentId, setCurrentComponentId,
-        viewMode, setViewMode
+        viewMode, setViewMode,
+        updateDailyWordCount, updateDailyGoal
     }), [
-        projectPath, chapters, characters, lore,
+        projectPath, chapters, characters, lore, stats,
         refreshFiles, createItem, renameItem, reorderItem,
-        currentChapter, currentComponentId, viewMode
+        currentChapter, currentComponentId, viewMode,
+        updateDailyWordCount, updateDailyGoal
     ]);
 
     return (

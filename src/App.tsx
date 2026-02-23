@@ -3,6 +3,7 @@ import Sidebar from './components/layout/Sidebar';
 import MainEditor from './components/layout/MainEditor';
 import CharacterEditor from './components/layout/CharacterEditor';
 import LoreEditor from './components/layout/LoreEditor';
+import Statistics from './components/layout/Statistics';
 import AIPanel from './components/layout/AIPanel';
 import WelcomeScreen from './components/WelcomeScreen';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
@@ -22,6 +23,7 @@ function MainLayout() {
       {viewMode === 'chapters' && <MainEditor />}
       {viewMode === 'characters' && <CharacterEditor />}
       {viewMode === 'lore' && <LoreEditor />}
+      {viewMode === 'statistics' && <Statistics />}
 
       <AIPanel />
     </div>

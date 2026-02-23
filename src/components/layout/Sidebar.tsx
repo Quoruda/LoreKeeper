@@ -39,8 +39,8 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
 
     const handleDrop = async (e: React.DragEvent, index: number) => {
         e.preventDefault();
-        if (draggedIndex === null || draggedIndex === index) return;
-        await reorderItem(draggedIndex, index, viewMode);
+        if (draggedIndex === null || draggedIndex === index || viewMode === 'statistics') return;
+        await reorderItem(draggedIndex, index, viewMode as ViewMode);
         setDraggedIndex(null);
     };
 
@@ -57,7 +57,8 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
         }
 
         try {
-            await createItem(title, viewMode);
+            if (viewMode === 'statistics') return;
+            await createItem(title, viewMode as ViewMode);
             // Re-intialiser
             setNewChapterTitle("");
             setIsCreatingChapter(false);
@@ -89,7 +90,7 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                             href="#"
                             onClick={(e) => {
                                 e.preventDefault();
-                                if (item.mode !== 'statistics') setViewMode(item.mode);
+                                setViewMode(item.mode);
                             }}
                             className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${viewMode === item.mode
                                 ? 'bg-gray-800 text-white'
@@ -104,113 +105,115 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                 })}
 
                 {/* Dynamic sub-items list */}
-                <div className="mt-4 pt-4 border-t border-gray-800/50">
-                    <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                        {viewMode === 'chapters' && t('sidebar.currentBook')}
-                        {viewMode === 'characters' && t('sidebar.nav.characters')}
-                        {viewMode === 'lore' && t('sidebar.nav.lore')}
-                    </p>
-                    <div className="space-y-1">
-                        {/* Chapters */}
-                        {viewMode === 'chapters' && chapters.map((item, index) => (
-                            <button
-                                key={item.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
-                                onDragOver={handleDragOver}
-                                onDrop={(e) => handleDrop(e, index)}
-                                onClick={() => setCurrentChapter(item.id)}
-                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentChapter === item.id
-                                    ? 'text-white bg-primary-500/20'
-                                    : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
-                                    } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
-                            >
-                                <FileText className={`w-4 h-4 mr-3 shrink-0 ${currentChapter === item.id ? 'text-primary-400' : 'text-gray-500 group-hover:text-primary-400'
-                                    }`} />
-                                <span className="truncate">{item.title}</span>
-                            </button>
-                        ))}
+                {viewMode !== 'statistics' && (
+                    <div className="mt-4 pt-4 border-t border-gray-800/50">
+                        <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                            {viewMode === 'chapters' && t('sidebar.currentBook')}
+                            {viewMode === 'characters' && t('sidebar.nav.characters')}
+                            {viewMode === 'lore' && t('sidebar.nav.lore')}
+                        </p>
+                        <div className="space-y-1">
+                            {/* Chapters */}
+                            {viewMode === 'chapters' && chapters.map((item, index) => (
+                                <button
+                                    key={item.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onClick={() => setCurrentChapter(item.id)}
+                                    className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentChapter === item.id
+                                        ? 'text-white bg-primary-500/20'
+                                        : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
+                                        } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                                >
+                                    <FileText className={`w-4 h-4 mr-3 shrink-0 ${currentChapter === item.id ? 'text-primary-400' : 'text-gray-500 group-hover:text-primary-400'
+                                        }`} />
+                                    <span className="truncate">{item.title}</span>
+                                </button>
+                            ))}
 
-                        {/* Characters */}
-                        {viewMode === 'characters' && characters.map((item, index) => (
-                            <button
-                                key={item.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
-                                onDragOver={handleDragOver}
-                                onDrop={(e) => handleDrop(e, index)}
-                                onClick={() => setCurrentComponentId(item.id)}
-                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === item.id
-                                    ? 'text-white bg-indigo-500/20'
-                                    : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
-                                    } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
-                            >
-                                <Users className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
-                                    }`} />
-                                <span className="truncate">{item.title}</span>
-                            </button>
-                        ))}
+                            {/* Characters */}
+                            {viewMode === 'characters' && characters.map((item, index) => (
+                                <button
+                                    key={item.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onClick={() => setCurrentComponentId(item.id)}
+                                    className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === item.id
+                                        ? 'text-white bg-indigo-500/20'
+                                        : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
+                                        } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                                >
+                                    <Users className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
+                                        }`} />
+                                    <span className="truncate">{item.title}</span>
+                                </button>
+                            ))}
 
-                        {/* Lore */}
-                        {viewMode === 'lore' && lore.map((item, index) => (
-                            <button
-                                key={item.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
-                                onDragOver={handleDragOver}
-                                onDrop={(e) => handleDrop(e, index)}
-                                onClick={() => setCurrentComponentId(item.id)}
-                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === item.id
-                                    ? 'text-white bg-indigo-500/20'
-                                    : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
-                                    } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
-                            >
-                                <ScrollText className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
-                                    }`} />
-                                <span className="truncate">{item.title}</span>
-                            </button>
-                        ))}
+                            {/* Lore */}
+                            {viewMode === 'lore' && lore.map((item, index) => (
+                                <button
+                                    key={item.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onClick={() => setCurrentComponentId(item.id)}
+                                    className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === item.id
+                                        ? 'text-white bg-indigo-500/20'
+                                        : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
+                                        } ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                                >
+                                    <ScrollText className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
+                                        }`} />
+                                    <span className="truncate">{item.title}</span>
+                                </button>
+                            ))}
 
-                        {isCreatingChapter ? (
-                            <form onSubmit={handleCreateSubmit} className={`px-3 py-2 flex items-center space-x-2 bg-gray-800/50 rounded-lg border ${viewMode === 'chapters' ? 'border-primary-500/50' : 'border-indigo-500/50'}`}>
-                                {viewMode === 'chapters' ? <FileText className="w-4 h-4 text-primary-400 shrink-0" /> : <Users className="w-4 h-4 text-indigo-400 shrink-0" />}
-                                <input
-                                    autoFocus
-                                    type="text"
-                                    value={newChapterTitle}
-                                    onChange={(e) => setNewChapterTitle(e.target.value)}
-                                    placeholder={
-                                        viewMode === 'chapters' ? t('sidebar.chapterNamePlaceholder') :
-                                            viewMode === 'characters' ? t('sidebar.charNamePlaceholder') :
-                                                t('sidebar.loreNamePlaceholder')
+                            {isCreatingChapter ? (
+                                <form onSubmit={handleCreateSubmit} className={`px-3 py-2 flex items-center space-x-2 bg-gray-800/50 rounded-lg border ${viewMode === 'chapters' ? 'border-primary-500/50' : 'border-indigo-500/50'}`}>
+                                    {viewMode === 'chapters' ? <FileText className="w-4 h-4 text-primary-400 shrink-0" /> : <Users className="w-4 h-4 text-indigo-400 shrink-0" />}
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        value={newChapterTitle}
+                                        onChange={(e) => setNewChapterTitle(e.target.value)}
+                                        placeholder={
+                                            viewMode === 'chapters' ? t('sidebar.chapterNamePlaceholder') :
+                                                viewMode === 'characters' ? t('sidebar.charNamePlaceholder') :
+                                                    t('sidebar.loreNamePlaceholder')
+                                        }
+                                        className="flex-1 bg-transparent text-sm text-white outline-none min-w-0"
+                                        onBlur={() => {
+                                            if (!newChapterTitle.trim()) setIsCreatingChapter(false);
+                                        }}
+                                    />
+                                    <button type="submit" className={`${viewMode === 'chapters' ? 'text-primary-400 hover:text-primary-300' : 'text-indigo-400 hover:text-indigo-300'} transition-colors`}>
+                                        <Check className="w-4 h-4" />
+                                    </button>
+                                    <button type="button" onClick={() => setIsCreatingChapter(false)} className="text-gray-500 hover:text-gray-300 transition-colors">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </form>
+                            ) : (
+                                <button
+                                    onClick={() => setIsCreatingChapter(true)}
+                                    className="w-full flex items-center px-3 py-2 text-sm text-gray-500 hover:text-white hover:bg-gray-800/30 rounded-lg italic group"
+                                >
+                                    <span className="w-4 h-4 mr-3 shrink-0 text-center font-bold text-lg leading-none">+</span>
+                                    {
+                                        viewMode === 'chapters' ? t('sidebar.newChapter') :
+                                            viewMode === 'characters' ? t('sidebar.newCharacter') :
+                                                t('sidebar.newLore')
                                     }
-                                    className="flex-1 bg-transparent text-sm text-white outline-none min-w-0"
-                                    onBlur={() => {
-                                        if (!newChapterTitle.trim()) setIsCreatingChapter(false);
-                                    }}
-                                />
-                                <button type="submit" className={`${viewMode === 'chapters' ? 'text-primary-400 hover:text-primary-300' : 'text-indigo-400 hover:text-indigo-300'} transition-colors`}>
-                                    <Check className="w-4 h-4" />
                                 </button>
-                                <button type="button" onClick={() => setIsCreatingChapter(false)} className="text-gray-500 hover:text-gray-300 transition-colors">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </form>
-                        ) : (
-                            <button
-                                onClick={() => setIsCreatingChapter(true)}
-                                className="w-full flex items-center px-3 py-2 text-sm text-gray-500 hover:text-white hover:bg-gray-800/30 rounded-lg italic group"
-                            >
-                                <span className="w-4 h-4 mr-3 shrink-0 text-center font-bold text-lg leading-none">+</span>
-                                {
-                                    viewMode === 'chapters' ? t('sidebar.newChapter') :
-                                        viewMode === 'characters' ? t('sidebar.newCharacter') :
-                                            t('sidebar.newLore')
-                                }
-                            </button>
-                        )}
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
             </nav>
 
             {/* Settings Footer */}

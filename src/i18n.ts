@@ -78,6 +78,23 @@ const resources = {
                 "note1Desc": "Introduction of Elara's character waking up. An atmosphere of anticipation for a major event is established.",
                 "note2Title": "Characters",
                 "note2Desc": "Elara: Seems used to a modest environment (worn floorboards). Has striking dreams."
+            },
+            "statistics": {
+                "title": "Dashboard",
+                "subtitle": "Track your project's progress and statistics",
+                "dailyGoal": "Daily Goal",
+                "wordsPerDay": "words / day",
+                "words": "words",
+                "achieved": "achieved",
+                "editGoal": "Edit Goal",
+                "average": "Average (14d)",
+                "projectVolume": "Project Volume",
+                "filesCreated": "files created",
+                "chapters": "chapters",
+                "characters": "characters",
+                "lore": "lore",
+                "historyTitle": "Writing History",
+                "wordsWritten": "Words written"
             }
         }
     },
@@ -156,6 +173,23 @@ const resources = {
                 "note1Desc": "Présentation du personnage d'Elara qui se réveille. Une ambiance d'anticipation pour un évènement important est mise en place.",
                 "note2Title": "Personnages",
                 "note2Desc": "Elara : Semble habituée à un environnement modeste (plancher usé). Fait des rêves marquants."
+            },
+            "statistics": {
+                "title": "Tableau de bord",
+                "subtitle": "Suivi et statistiques de votre projet",
+                "dailyGoal": "Objectif Quotidien",
+                "wordsPerDay": "mots / jour",
+                "words": "mots",
+                "achieved": "atteint",
+                "editGoal": "Modifier l'objectif",
+                "average": "Moyenne (14j)",
+                "projectVolume": "Volume du Projet",
+                "filesCreated": "fichiers créés",
+                "chapters": "chapitres",
+                "characters": "personnages",
+                "lore": "lore",
+                "historyTitle": "Historique d'écriture",
+                "wordsWritten": "Mots écrits"
             }
         }
     }

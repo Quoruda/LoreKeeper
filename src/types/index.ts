@@ -26,3 +26,8 @@ export interface Registry {
     characters: RegistryItem[];
     lore: RegistryItem[];
 }
+
+export interface ProjectStats {
+    dailyGoal: number;
+    history: Record<string, number>; // Date au format YYYY-MM-DD -> Nombre de mots écrits
+}

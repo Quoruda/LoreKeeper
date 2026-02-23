@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProject } from '../../contexts/ProjectContext';
 import { useTranslation } from 'react-i18next';
@@ -9,10 +9,23 @@ import remarkGfm from 'remark-gfm';
 
 export default function MainEditor() {
     const { t } = useTranslation();
-    const { projectPath, currentChapter, chapters, renameItem } = useProject();
+    const { projectPath, currentChapter, chapters, renameItem, updateDailyWordCount } = useProject();
     const [content, setContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [editTitle, setEditTitle] = useState('');
+    const initialWordCountRef = useRef(0);
+    const saveTimerRef = useRef<number | null>(null);
+    const currentChapterRef = useRef(currentChapter);
+    const contentRef = useRef(content);
+    const projectPathRef = useRef(projectPath);
+
+    useEffect(() => {
+        currentChapterRef.current = currentChapter;
+    }, [currentChapter]);
+
+    useEffect(() => {
+        projectPathRef.current = projectPath;
+    }, [projectPath]);
 
     // Composant de rendu personnalisé pour HybridMarkdownEditor
     // Permet d'injecter tous les composants complexes de ReactMarkdown (Gras, liens, code...) 
@@ -66,40 +79,98 @@ export default function MainEditor() {
 
     // Charger le contenu du chapitre quand il change
     useEffect(() => {
+        let isCancelled = false;
+
+        // --- CHARGEMENT DU NOUVEAU CHAPITRE ---
         if (projectPath && currentChapter) {
             const loadChapter = async () => {
                 try {
                     const fileContent: string = await invoke('read_file', {
                         path: `${projectPath}/chapters/${currentChapter}`
                     });
+                    if (isCancelled) return;
                     setContent(fileContent);
+                    contentRef.current = fileContent;
+                    const text = fileContent.trim();
+                    // On filtre les éléments vides après avoir séparé par n'importe quel espace / retour chariot
+                    const words = text ? text.split(/[\s\n\r]+/).filter(w => w.length > 0).length : 0;
+                    initialWordCountRef.current = words;
                 } catch (error) {
                     console.error("Erreur de lecture:", error);
+                    if (isCancelled) return;
                     setContent('');
+                    contentRef.current = '';
+                    initialWordCountRef.current = 0;
                 }
             };
             loadChapter();
         } else {
             setContent('');
+            contentRef.current = '';
+            initialWordCountRef.current = 0;
         }
+
+        // --- MÉCANISME DE SAUVEGARDE AU DÉMONTAGE / CHANGEMENT DE CHAPITRE ---
+        return () => {
+            isCancelled = true;
+            if (projectPath && currentChapter && saveTimerRef.current) {
+                clearTimeout(saveTimerRef.current);
+                saveTimerRef.current = null;
+                // Flush synchrone / asynchrone sécurisé du dernier état connu (sur l'ancien chapitre bloqué en mémoire)
+                invoke('write_file', {
+                    path: `${projectPath}/chapters/${currentChapter}`,
+                    content: contentRef.current
+                }).catch(e => console.error("Erreur flush:", e));
+            }
+        };
     }, [projectPath, currentChapter]);
 
-    // Sauvegarde automatique (gérée par le composant hybride)
-    const handleDebouncedSave = async (newContent: string) => {
-        if (projectPath && currentChapter) {
+    // Sauvegarde automatique native et robuste (Debounce manuel)
+    const handleContentChange = useCallback((newContent: string) => {
+        setContent(newContent); // Met à jour l'affichage immédiatement
+        contentRef.current = newContent; // Maintient la ref à jour pour le démontage
+
+        // Annule le timer précédent s'il y en a un
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+        }
+
+        const activePath = projectPath;
+        const activeChapter = currentChapter;
+
+        // Lance un nouveau timer de sauvegarde
+        saveTimerRef.current = window.setTimeout(async () => {
+            if (!activePath || !activeChapter) return;
+
             setIsSaving(true);
             try {
                 await invoke('write_file', {
-                    path: `${projectPath}/chapters/${currentChapter}`,
+                    path: `${activePath}/chapters/${activeChapter}`,
                     content: newContent
                 });
+
+                saveTimerRef.current = null; // Timer acquitté
+
+                // Calcul des mots écrits et envoi dans les stats
+                const currentText = newContent.trim();
+                const newWordCount = currentText ? currentText.split(/[\s\n\r]+/).filter(w => w.length > 0).length : 0;
+                const delta = newWordCount - initialWordCountRef.current;
+
+                if (delta > 0) { // On ajoute uniquement les ajouts confirmés
+                    updateDailyWordCount(delta);
+                    // On ne met à jour la référence QUE si un delta a été enregistré
+                    initialWordCountRef.current = newWordCount;
+                } else if (delta < 0) {
+                    // Si l'utilisateur efface du texte, on ajuste sa ligne de base
+                    initialWordCountRef.current = newWordCount;
+                }
             } catch (error) {
-                console.error("Erreur de sauvegarde:", error);
+                console.error("Erreur de sauvegarde native:", error);
             } finally {
                 setIsSaving(false);
             }
-        }
-    };
+        }, 1000); // Délai de 1 seconde après la frappe
+    }, [projectPath, currentChapter, updateDailyWordCount]);
 
     // Si aucun chapitre n'est sélectionné
     if (!currentChapter) {
@@ -117,7 +188,8 @@ export default function MainEditor() {
     };
 
     // Calcul des statistiques en temps réel
-    const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+    const currentText = content.trim();
+    const wordCount = currentText ? currentText.split(/[\s\n\r]+/).filter(w => w.length > 0).length : 0;
     const charCount = content.length;
 
     return (
@@ -147,9 +219,7 @@ export default function MainEditor() {
                 <div className="max-w-3xl mx-auto h-full flex flex-col">
                     <HybridMarkdownEditor
                         value={content}
-                        onChange={setContent}
-                        onDebouncedChange={handleDebouncedSave}
-                        debounceMs={1000}
+                        onChange={handleContentChange}
                         renderLine={renderMarkdownLine}
                         classNames={{
                             root: 'hybrid-editor-root w-full h-full text-lg leading-relaxed text-gray-300',
