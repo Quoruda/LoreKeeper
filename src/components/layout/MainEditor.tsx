@@ -19,6 +19,11 @@ export default function MainEditor() {
     const contentRef = useRef(content);
     const projectPathRef = useRef(projectPath);
 
+    // Références pour l'historique d'annulation du texte (Ctrl-Z / Ctrl-A)
+    const undoStackRef = useRef<string[]>([]);
+    const redoStackRef = useRef<string[]>([]);
+    const undoTimeoutRef = useRef<number | null>(null);
+
     useEffect(() => {
         currentChapterRef.current = currentChapter;
     }, [currentChapter]);
@@ -91,6 +96,8 @@ export default function MainEditor() {
                     if (isCancelled) return;
                     setContent(fileContent);
                     contentRef.current = fileContent;
+                    undoStackRef.current = [];
+                    redoStackRef.current = [];
                     const text = fileContent.trim();
                     // On filtre les éléments vides après avoir séparé par n'importe quel espace / retour chariot
                     const words = text ? text.split(/[\s\n\r]+/).filter(w => w.length > 0).length : 0;
@@ -107,6 +114,8 @@ export default function MainEditor() {
         } else {
             setContent('');
             contentRef.current = '';
+            undoStackRef.current = [];
+            redoStackRef.current = [];
             initialWordCountRef.current = 0;
         }
 
@@ -126,7 +135,25 @@ export default function MainEditor() {
     }, [projectPath, currentChapter]);
 
     // Sauvegarde automatique native et robuste (Debounce manuel)
-    const handleContentChange = useCallback((newContent: string) => {
+    const handleContentChange = useCallback((newContent: string, isFromHistory = false) => {
+        // --- GESTION DE L'HISTORIQUE (Ctrl-Z) ---
+        if (!isFromHistory) {
+            if (contentRef.current !== newContent) {
+                const prev = contentRef.current;
+                if (!undoTimeoutRef.current) {
+                    undoStackRef.current.push(prev);
+                    if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+                    redoStackRef.current = []; // Invalide le redo si l'utilisateur re-tape manuellement
+                } else {
+                    clearTimeout(undoTimeoutRef.current);
+                }
+                // Groupe les frappes dans une même "transaction" de 500ms
+                undoTimeoutRef.current = window.setTimeout(() => {
+                    undoTimeoutRef.current = null;
+                }, 500);
+            }
+        }
+
         setContent(newContent); // Met à jour l'affichage immédiatement
         contentRef.current = newContent; // Maintient la ref à jour pour le démontage
 
@@ -215,14 +242,80 @@ export default function MainEditor() {
             </div>
 
             {/* Editor Content Area */}
-            <div className="flex-1 overflow-y-auto p-8 lg:p-12 pb-32">
-                <div className="max-w-3xl mx-auto h-full flex flex-col">
+            <div
+                className="flex-1 overflow-y-auto bg-[#050608] p-4 sm:p-8 lg:p-12 pb-32 cursor-text"
+                onClick={() => {
+                    // Clic dans le vide de l'application = focus sur la dernière ligne de la feuille
+                    const textareas = document.querySelectorAll('.hybrid-editor-content textarea');
+                    if (textareas.length > 0) {
+                        (textareas[textareas.length - 1] as HTMLTextAreaElement).focus();
+                    }
+                }}
+                onKeyDownCapture={(e) => {
+                    // Ctrl+A : Sélection globale de tout le contenu
+                    if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        const editor = document.querySelector('.hybrid-editor-content');
+                        if (editor) {
+                            const range = document.createRange();
+                            range.selectNodeContents(editor);
+                            const sel = window.getSelection();
+                            if (sel) {
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                            }
+                        }
+                    }
+
+                    // Ctrl+Z : Annuler / Refaire (ou Ctrl+Y)
+                    if ((e.key === 'z' || e.key === 'y') && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+
+                        // Forcer l'interruption du frame typing actuel pour sécuriser l'historique
+                        if (undoTimeoutRef.current) {
+                            clearTimeout(undoTimeoutRef.current);
+                            undoTimeoutRef.current = null;
+                        }
+
+                        if (e.shiftKey || e.key === 'y') {
+                            // Redo
+                            if (redoStackRef.current.length > 0) {
+                                const nextState = redoStackRef.current.pop()!;
+                                undoStackRef.current.push(contentRef.current);
+                                handleContentChange(nextState, true);
+                            }
+                        } else {
+                            // Undo
+                            if (undoStackRef.current.length > 0) {
+                                const prevState = undoStackRef.current.pop()!;
+                                redoStackRef.current.push(contentRef.current);
+                                handleContentChange(prevState, true);
+                            }
+                        }
+                    }
+                }}
+            >
+                <div
+                    className="max-w-4xl mx-auto min-h-[85vh] bg-[#0d1117] border border-gray-800 rounded-xl shadow-2xl shadow-black/50 p-8 sm:p-12 lg:p-16 flex flex-col transition-all cursor-text ring-1 ring-white/5"
+                    onClick={(e) => {
+                        // Empêcher que le clic dans la feuille redéclenche le clic de background, 
+                        // sauf si on clique vraiment en dessous du texte
+                        if ((e.target as HTMLElement).tagName !== 'TEXTAREA' && (e.target as HTMLElement).tagName !== 'A') {
+                            const textareas = document.querySelectorAll('.hybrid-editor-content textarea');
+                            if (textareas.length > 0) {
+                                (textareas[textareas.length - 1] as HTMLTextAreaElement).focus();
+                            }
+                        }
+                    }}
+                >
                     <HybridMarkdownEditor
                         value={content}
-                        onChange={handleContentChange}
+                        onChange={(c) => handleContentChange(c, false)}
+                        onDebouncedChange={(c) => handleContentChange(c, false)}
+                        debounceMs={100}
                         renderLine={renderMarkdownLine}
                         classNames={{
-                            root: 'hybrid-editor-root w-full h-full text-lg leading-relaxed text-gray-300',
+                            root: 'hybrid-editor-root w-full h-full text-[17px] leading-[1.8] text-gray-300',
                             content: 'hybrid-editor-content',
                             activeLine: 'hybrid-active-line',
                             lineTypes: {

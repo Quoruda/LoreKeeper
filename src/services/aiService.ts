@@ -1,4 +1,4 @@
-import { ProjectSettings } from '../types';
+import type { ProjectSettings } from '../types';
 
 export interface AIResponse {
     text: string;
@@ -9,7 +9,8 @@ export interface AIResponse {
 export const generateWithMistral = async (
     prompt: string,
     settings: ProjectSettings,
-    systemPrompt: string = ""
+    systemPrompt: string = "",
+    temperature: number = 0.7
 ): Promise<AIResponse> => {
     if (!settings.mistralApiKey || settings.aiProvider === 'none') {
         return { text: "", error: "L'assistance IA n'est pas configurée. Veuillez renseigner votre clé API dans les paramètres." };
@@ -28,7 +29,7 @@ export const generateWithMistral = async (
             },
             body: JSON.stringify({
                 model: settings.mistralModel || 'open-mistral-nemo',
-                temperature: settings.temperature || 0.7,
+                temperature: temperature,
                 messages: [
                     ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
                     { role: 'user', content: prompt }
