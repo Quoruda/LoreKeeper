@@ -1,4 +1,4 @@
-import { Book, Users, ScrollText, BarChart2, Settings, ChevronRight, FileText, Check, X } from 'lucide-react';
+import { Book, Users, ScrollText, BarChart2, Settings, ChevronRight, FileText, Check, X, LogOut } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useState } from 'react';
@@ -20,7 +20,8 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
         currentComponentId, setCurrentComponentId,
         viewMode, setViewMode,
         createItem,
-        reorderItem
+        reorderItem,
+        closeProject
     } = useProject();
     const [isCreatingChapter, setIsCreatingChapter] = useState(false);
     const [newChapterTitle, setNewChapterTitle] = useState("");
@@ -217,18 +218,26 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
             </nav>
 
             {/* Settings Footer */}
-            <div className="p-4 border-t border-gray-800 shrink-0">
+            <div className="p-4 border-t border-gray-800 shrink-0 space-y-2">
                 <a
                     href="#"
                     onClick={(e) => { e.preventDefault(); setViewMode('settings'); }}
                     className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${viewMode === 'settings'
-                            ? 'bg-gray-800 text-white'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                        ? 'bg-gray-800 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
                         }`}
                 >
                     <Settings className="w-5 h-5 mr-3 shrink-0" />
                     {t('sidebar.settings')}
                 </a>
+
+                <button
+                    onClick={() => closeProject()}
+                    className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-400 rounded-lg hover:text-white hover:bg-red-500/20 transition-colors"
+                >
+                    <LogOut className="w-5 h-5 mr-3 shrink-0" />
+                    Fermer le projet
+                </button>
             </div>
         </div>
     );

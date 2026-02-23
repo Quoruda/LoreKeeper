@@ -36,7 +36,7 @@ export interface ProjectSettings {
     aiProvider: 'mistral' | 'none';
     mistralApiKey: string;
     mistralModel: string;
-    temperature: number;
+    language: string;
     lastViewMode?: ViewMode | 'statistics';
     lastChapterId?: string | null;
     lastComponentId?: string | null;

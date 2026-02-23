@@ -35,6 +35,11 @@ function MainLayout() {
 function App() {
   const [projectPath, setProjectPath] = useState<string | null>(null);
 
+  const handleCloseProject = () => {
+    setProjectPath(null);
+    localStorage.removeItem('lorekeeper_last_project');
+  };
+
   // Si aucun projet n'est ouvert, on affiche l'écran d'accueil
   if (!projectPath) {
     return <WelcomeScreen onProjectOpened={setProjectPath} />;
@@ -42,7 +47,7 @@ function App() {
 
   // Sinon, on affiche l'éditeur complet enveloppé par le contexte du projet
   return (
-    <ProjectProvider projectPath={projectPath}>
+    <ProjectProvider projectPath={projectPath} onCloseProject={handleCloseProject}>
       <MainLayout />
     </ProjectProvider>
   );

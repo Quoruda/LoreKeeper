@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import type { ViewMode, Registry, RegistryItem, ProjectStats, ProjectSettings } from '../types';
 
 interface ProjectContextType {
@@ -23,11 +24,12 @@ interface ProjectContextType {
     updateDailyWordCount: (delta: number) => Promise<void>;
     updateDailyGoal: (goal: number) => Promise<void>;
     updateSettings: (newSettings: Partial<ProjectSettings>) => Promise<void>;
+    closeProject: () => void;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-export function ProjectProvider({ children, projectPath }: { children: ReactNode, projectPath: string }) {
+export function ProjectProvider({ children, projectPath, onCloseProject }: { children: ReactNode, projectPath: string, onCloseProject: () => void }) {
     const [chapters, setChapters] = useState<RegistryItem[]>([]);
     const [characters, setCharacters] = useState<RegistryItem[]>([]);
     const [lore, setLore] = useState<RegistryItem[]>([]);
@@ -36,11 +38,18 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         aiProvider: 'none',
         mistralApiKey: '',
         mistralModel: 'open-mistral-nemo',
-        temperature: 0.7
+        language: 'fr'
     });
     const [currentChapter, setCurrentChapter] = useState<string | null>(null);
     const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode | 'statistics'>('chapters');
+    const { i18n } = useTranslation();
+
+    useEffect(() => {
+        if (settings.language) {
+            i18n.changeLanguage(settings.language);
+        }
+    }, [settings.language, i18n]);
 
     const slugify = (text: string) => {
         return text.toString().toLowerCase()
@@ -138,7 +147,7 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
                 aiProvider: 'none',
                 mistralApiKey: '',
                 mistralModel: 'open-mistral-nemo',
-                temperature: 0.7
+                language: 'fr'
             };
             await saveSettings(initialSettings);
             // setSettings est déjà appelé dans saveSettings()
@@ -266,10 +275,21 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         await saveSettings(updatedSettings);
     }, [settings, projectPath]);
 
+    const closeProject = useCallback(() => {
+        onCloseProject();
+    }, [onCloseProject]);
+
     // Charge le registre au montage
     useEffect(() => {
         refreshFiles();
     }, [refreshFiles]);
+
+    // Synchronisation de la langue avec i18next
+    useEffect(() => {
+        if (settings.language && i18n.language !== settings.language) {
+            i18n.changeLanguage(settings.language);
+        }
+    }, [settings.language, i18n]);
 
     // Sauvegarde automatique du contexte UI (Vue active, dernier élément sélectionné)
     const isFirstRender = useRef(true);
@@ -301,12 +321,12 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         currentChapter, setCurrentChapter,
         currentComponentId, setCurrentComponentId,
         viewMode, setViewMode,
-        updateDailyWordCount, updateDailyGoal, updateSettings
+        updateDailyWordCount, updateDailyGoal, updateSettings, closeProject
     }), [
         projectPath, chapters, characters, lore, stats, settings,
         refreshFiles, createItem, renameItem, reorderItem,
         currentChapter, currentComponentId, viewMode,
-        updateDailyWordCount, updateDailyGoal, updateSettings
+        updateDailyWordCount, updateDailyGoal, updateSettings, closeProject
     ]);
 
     return (

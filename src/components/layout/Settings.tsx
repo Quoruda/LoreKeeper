@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useProject } from '../../contexts/ProjectContext';
-import { Key, Bot, Settings2, PlugZap, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Key, Bot, Settings2, PlugZap, ShieldAlert, CheckCircle2, Globe } from 'lucide-react';
 
 export default function Settings() {
     const { settings, updateSettings } = useProject();
     const [apiKey, setApiKey] = useState(settings.mistralApiKey);
     const [model, setModel] = useState(settings.mistralModel);
-    const [temperature, setTemperature] = useState(settings.temperature.toString());
+    const [language, setLanguage] = useState(settings.language || 'fr');
     const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
     const [testMessage, setTestMessage] = useState('');
 
@@ -15,7 +15,7 @@ export default function Settings() {
         await updateSettings({
             mistralApiKey: apiKey,
             mistralModel: model,
-            temperature: parseFloat(temperature) || 0.7
+            language: language
         });
         // Feedback visuel court ?
         setTestStatus('idle');
@@ -131,26 +131,6 @@ export default function Settings() {
                                     </select>
                                 </div>
 
-                                {/* Créativité (Température) */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300 flex items-center justify-between">
-                                        <span>Créativité (Température: {temperature})</span>
-                                    </label>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.1"
-                                        value={temperature}
-                                        onChange={(e) => setTemperature(e.target.value)}
-                                        className="w-full accent-indigo-500 bg-gray-700 h-2 rounded-lg appearance-none cursor-pointer"
-                                    />
-                                    <div className="flex justify-between text-xs text-gray-500">
-                                        <span>0.0 (Logique/Factuel)</span>
-                                        <span>1.0 (très Créatif)</span>
-                                    </div>
-                                </div>
-
                                 <div className="pt-4 flex items-center space-x-4">
                                     <button
                                         type="submit"
@@ -187,6 +167,43 @@ export default function Settings() {
                                         <span>{testMessage}</span>
                                     </div>
                                 )}
+                            </form>
+                        </div>
+                    </div>
+
+                    {/* Section Préférences Générales */}
+                    <div className="bg-gray-800/40 border border-gray-800 rounded-xl p-8 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-6 opacity-5">
+                            <Globe className="w-32 h-32 text-green-500" />
+                        </div>
+                        <div className="relative z-10">
+                            <h2 className="text-xl font-semibold text-white mb-6 flex items-center">
+                                <Globe className="w-5 h-5 mr-3 text-green-400" />
+                                Préférences Générales
+                            </h2>
+                            <form onSubmit={handleSave} className="space-y-6 max-w-xl">
+                                {/* Choix de la langue */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">
+                                        Langue de l'interface
+                                    </label>
+                                    <select
+                                        value={language}
+                                        onChange={(e) => setLanguage(e.target.value)}
+                                        className="w-full bg-[#0a0d12] border border-gray-700/50 rounded-lg px-4 py-2.5 text-white focus:border-green-500/50 outline-none appearance-none"
+                                    >
+                                        <option value="fr">Français</option>
+                                        <option value="en">English</option>
+                                    </select>
+                                </div>
+                                <div className="pt-4 flex items-center space-x-4">
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-lg shadow-lg shadow-green-900/20 transition-all active:scale-95"
+                                    >
+                                        Sauvegarder les préférences
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     </div>
