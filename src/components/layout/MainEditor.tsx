@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useProject } from '../../contexts/ProjectContext';
 import { useTranslation } from 'react-i18next';
 import { HybridMarkdownEditor } from 'hybrid-markdown-editor';
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export default function MainEditor() {
@@ -16,42 +17,44 @@ export default function MainEditor() {
     // Composant de rendu personnalisé pour HybridMarkdownEditor
     // Permet d'injecter tous les composants complexes de ReactMarkdown (Gras, liens, code...) 
     // à l'intérieur du conteneur de type (h1, p, blockquote) déjà géré par l'éditeur hybride.
-    const renderMarkdownLine = ({ line, isActive, defaultContent }: any) => {
+    const renderMarkdownLine = useCallback(({ line, isActive, defaultContent }: any) => {
         if (isActive) return defaultContent;
         if (line.trim() === '') return <>{'\u00A0'}</>;
+
+        const customComponents: Partial<Components> = {
+            // On unwrap les blocs primaires car HybridMarkdownEditor s'en charge déjà (il wrappe dans hmd-h1, hmd-p, etc.)
+            p: ({ children }) => <>{children}</>,
+            h1: ({ children }) => <>{children}</>,
+            h2: ({ children }) => <>{children}</>,
+            h3: ({ children }) => <>{children}</>,
+            h4: ({ children }) => <>{children}</>,
+            h5: ({ children }) => <>{children}</>,
+            h6: ({ children }) => <>{children}</>,
+            ul: ({ children }) => <>{children}</>,
+            ol: ({ children }) => <>{children}</>,
+            li: ({ children }) => <>{children}</>,
+            blockquote: ({ children }) => <>{children}</>,
+            // Stylisation des éléments en ligne
+            a: ({ href, children }) => <a href={href} className="text-primary-400 underline decoration-primary-500/30 hover:decoration-primary-500 transition-colors cursor-pointer" target="_blank" rel="noreferrer" onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}>{children}</a>,
+            code: ({ children }) => (
+                <code className="bg-gray-800/80 rounded px-1.5 py-0.5 text-sm text-pink-400 font-mono border border-gray-700/50">
+                    {children}
+                </code>
+            ),
+            strong: ({ children }) => <strong className="font-bold text-gray-100">{children}</strong>,
+            em: ({ children }) => <em className="italic text-gray-300">{children}</em>,
+            del: ({ children }) => <del className="line-through text-gray-500">{children}</del>
+        };
 
         return (
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
-                components={{
-                    // On unwrap les blocs primaires car HybridMarkdownEditor s'en charge déjà (il wrappe dans hmd-h1, hmd-p, etc.)
-                    p: ({ children }) => <>{children}</>,
-                    h1: ({ children }) => <>{children}</>,
-                    h2: ({ children }) => <>{children}</>,
-                    h3: ({ children }) => <>{children}</>,
-                    h4: ({ children }) => <>{children}</>,
-                    h5: ({ children }) => <>{children}</>,
-                    h6: ({ children }) => <>{children}</>,
-                    ul: ({ children }) => <>{children}</>,
-                    ol: ({ children }) => <>{children}</>,
-                    li: ({ children }) => <>{children}</>,
-                    blockquote: ({ children }) => <>{children}</>,
-                    // Stylisation des éléments en ligne
-                    a: ({ href, children }) => <a href={href} className="text-primary-400 underline decoration-primary-500/30 hover:decoration-primary-500 transition-colors cursor-pointer" target="_blank" rel="noreferrer" onMouseDown={(e) => e.stopPropagation()}>{children}</a>,
-                    code: ({ children }: any) => (
-                        <code className="bg-gray-800/80 rounded px-1.5 py-0.5 text-sm text-pink-400 font-mono border border-gray-700/50">
-                            {children}
-                        </code>
-                    ),
-                    strong: ({ children }) => <strong className="font-bold text-gray-100">{children}</strong>,
-                    em: ({ children }) => <em className="italic text-gray-300">{children}</em>,
-                    del: ({ children }) => <del className="line-through text-gray-500">{children}</del>
-                }}
+                components={customComponents}
             >
                 {line}
             </ReactMarkdown>
         );
-    };
+    }, []);
 
     // Synchroniser le titre d'édition avec le registre
     useEffect(() => {

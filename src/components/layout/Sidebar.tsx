@@ -1,10 +1,11 @@
 import { Book, Users, ScrollText, BarChart2, Settings, ChevronRight, FileText, Check, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ViewMode } from '../../types';
 
-const navigationKeys: { key: string; icon: any; mode: ViewMode | 'statistics' }[] = [
+const navigationKeys: { key: string; icon: LucideIcon; mode: ViewMode | 'statistics' }[] = [
     { key: 'sidebar.nav.chapters', icon: Book, mode: 'chapters' },
     { key: 'sidebar.nav.characters', icon: Users, mode: 'characters' },
     { key: 'sidebar.nav.lore', icon: ScrollText, mode: 'lore' },

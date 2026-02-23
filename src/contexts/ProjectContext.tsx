@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ViewMode, Registry, RegistryItem } from '../types';
@@ -70,11 +70,11 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         }
     };
 
-    const refreshFiles = async () => {
+    const refreshFiles = useCallback(async () => {
         await loadOrBuildRegistry();
-    };
+    }, [projectPath]);
 
-    const createItem = async (title: string, mode: ViewMode) => {
+    const createItem = useCallback(async (title: string, mode: ViewMode) => {
         const timestamp = Date.now();
         // Slugification du titre pour en faire un identifiant de système de fichier sûr
         const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -110,9 +110,9 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
             console.error("Erreur lors de la création", error);
             throw error;
         }
-    };
+    }, [chapters, characters, lore, projectPath]);
 
-    const renameItem = async (oldId: string, newTitle: string, mode: ViewMode) => {
+    const renameItem = useCallback(async (oldId: string, newTitle: string, mode: ViewMode) => {
         const currentRegistry: Registry = { chapters, characters, lore };
 
         const targetList = currentRegistry[mode];
@@ -145,9 +145,9 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
             console.error("Erreur lors du renommage physique:", error);
             alert("Erreur: Impossible de renommer le fichier source. " + error);
         }
-    };
+    }, [chapters, characters, lore, projectPath, currentChapter, currentComponentId]);
 
-    const reorderItem = async (startIndex: number, endIndex: number, mode: ViewMode) => {
+    const reorderItem = useCallback(async (startIndex: number, endIndex: number, mode: ViewMode) => {
         const currentRegistry: Registry = { chapters, characters, lore };
 
         const list = Array.from(currentRegistry[mode]);
@@ -156,25 +156,32 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
 
         currentRegistry[mode] = list;
         await saveRegistry(currentRegistry);
-    };
+    }, [chapters, characters, lore, projectPath]);
 
     // Charge le registre au montage
     useEffect(() => {
         refreshFiles();
-    }, [projectPath]);
+    }, [refreshFiles]);
+
+    // Mémoïsation de la valeur du contexte pour éviter les re-rendus enfants inutiles
+    const contextValue = useMemo(() => ({
+        projectPath,
+        chapters, characters, lore,
+        refreshFiles,
+        createItem,
+        renameItem,
+        reorderItem,
+        currentChapter, setCurrentChapter,
+        currentComponentId, setCurrentComponentId,
+        viewMode, setViewMode
+    }), [
+        projectPath, chapters, characters, lore,
+        refreshFiles, createItem, renameItem, reorderItem,
+        currentChapter, currentComponentId, viewMode
+    ]);
 
     return (
-        <ProjectContext.Provider value={{
-            projectPath,
-            chapters, characters, lore,
-            refreshFiles,
-            createItem,
-            renameItem,
-            reorderItem,
-            currentChapter, setCurrentChapter,
-            currentComponentId, setCurrentComponentId,
-            viewMode, setViewMode
-        }}>
+        <ProjectContext.Provider value={contextValue}>
             {children}
         </ProjectContext.Provider>
     );
