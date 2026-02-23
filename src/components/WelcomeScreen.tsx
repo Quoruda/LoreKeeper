@@ -1,7 +1,7 @@
 import { FolderOpen, Book, Check } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface WelcomeScreenProps {
@@ -12,6 +12,26 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     const { t } = useTranslation();
     const [manualPath, setManualPath] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        const lastPath = localStorage.getItem('lorekeeper_last_project');
+        if (lastPath) {
+            setManualPath(lastPath);
+            const autoOpen = async () => {
+                setIsLoading(true);
+                try {
+                    await invoke('init_project', { path: lastPath });
+                    onProjectOpened(lastPath);
+                } catch (error) {
+                    console.error(t('welcome.errorInit'), error);
+                    // Si le chemin n'est plus valide (dossier supprimé ou déplacé)
+                    localStorage.removeItem('lorekeeper_last_project');
+                    setIsLoading(false);
+                }
+            };
+            autoOpen();
+        }
+    }, [onProjectOpened, t]);
 
     const handleBrowse = async () => {
         try {
@@ -34,6 +54,7 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
         setIsLoading(true);
         try {
             await invoke('init_project', { path: manualPath.trim() });
+            localStorage.setItem('lorekeeper_last_project', manualPath.trim());
             onProjectOpened(manualPath.trim());
         } catch (error) {
             console.error(t('welcome.errorInit'), error);

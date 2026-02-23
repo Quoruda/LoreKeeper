@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { ViewMode, Registry, RegistryItem, ProjectStats } from '../types';
+import type { ViewMode, Registry, RegistryItem, ProjectStats, ProjectSettings } from '../types';
 
 interface ProjectContextType {
     projectPath: string;
@@ -9,6 +9,7 @@ interface ProjectContextType {
     characters: RegistryItem[];
     lore: RegistryItem[];
     stats: ProjectStats;
+    settings: ProjectSettings;
     refreshFiles: () => Promise<void>;
     createItem: (title: string, mode: ViewMode) => Promise<void>;
     renameItem: (id: string, newTitle: string, mode: ViewMode) => Promise<void>;
@@ -21,6 +22,7 @@ interface ProjectContextType {
     setViewMode: (mode: ViewMode | 'statistics') => void;
     updateDailyWordCount: (delta: number) => Promise<void>;
     updateDailyGoal: (goal: number) => Promise<void>;
+    updateSettings: (newSettings: Partial<ProjectSettings>) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -30,6 +32,12 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
     const [characters, setCharacters] = useState<RegistryItem[]>([]);
     const [lore, setLore] = useState<RegistryItem[]>([]);
     const [stats, setStats] = useState<ProjectStats>({ dailyGoal: 500, history: {} });
+    const [settings, setSettings] = useState<ProjectSettings>({
+        aiProvider: 'none',
+        mistralApiKey: '',
+        mistralModel: 'open-mistral-nemo',
+        temperature: 0.7
+    });
     const [currentChapter, setCurrentChapter] = useState<string | null>(null);
     const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode | 'statistics'>('chapters');
@@ -69,6 +77,18 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         }
     };
 
+    const saveSettings = async (newSettings: ProjectSettings) => {
+        try {
+            await invoke('write_file', {
+                path: `${projectPath}/settings.json`,
+                content: JSON.stringify(newSettings, null, 2)
+            });
+            setSettings(newSettings);
+        } catch (error) {
+            console.error("Erreur saveSettings:", error);
+        }
+    };
+
     const loadOrBuildRegistry = async () => {
         try {
             const content: string = await invoke('read_file', { path: `${projectPath}/lorekeeper.json` });
@@ -103,6 +123,25 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
             const initialStats = { dailyGoal: 500, history: {} };
             await saveStats(initialStats);
             setStats(initialStats);
+        }
+
+        try {
+            const settingsContent: string = await invoke('read_file', { path: `${projectPath}/settings.json` });
+            const settingsData = JSON.parse(settingsContent) as ProjectSettings;
+            setSettings(settingsData);
+            if (settingsData.lastViewMode) setViewMode(settingsData.lastViewMode);
+            if (settingsData.lastChapterId !== undefined) setCurrentChapter(settingsData.lastChapterId);
+            if (settingsData.lastComponentId !== undefined) setCurrentComponentId(settingsData.lastComponentId);
+        } catch {
+            // Initialisation par défaut
+            const initialSettings: ProjectSettings = {
+                aiProvider: 'none',
+                mistralApiKey: '',
+                mistralModel: 'open-mistral-nemo',
+                temperature: 0.7
+            };
+            await saveSettings(initialSettings);
+            // setSettings est déjà appelé dans saveSettings()
         }
     };
 
@@ -149,10 +188,13 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
     }, [chapters, characters, lore, projectPath]);
 
     const renameItem = useCallback(async (oldId: string, newTitle: string, mode: ViewMode) => {
-        const currentRegistry: Registry = { chapters, characters, lore };
+        if (mode === 'settings') return;
 
-        const targetList = currentRegistry[mode];
-        const itemIndex = targetList.findIndex(item => item.id === oldId);
+        const currentRegistry: Registry = { chapters, characters, lore };
+        const registryMode = mode as keyof Registry;
+
+        const targetList = currentRegistry[registryMode];
+        const itemIndex = targetList.findIndex((item) => item.id === oldId);
 
         if (itemIndex === -1) return; // Sécurité
         if (targetList[itemIndex].title === newTitle) return; // Ne rien faire si identique
@@ -171,7 +213,7 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
                 newPath: `${projectPath}/${folder}/${newId}`
             });
 
-            currentRegistry[mode][itemIndex] = { id: newId, title: newTitle };
+            currentRegistry[registryMode][itemIndex] = { id: newId, title: newTitle };
 
             if (mode === 'chapters' && currentChapter === oldId) setCurrentChapter(newId);
             if ((mode === 'characters' || mode === 'lore') && currentComponentId === oldId) setCurrentComponentId(newId);
@@ -184,13 +226,16 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
     }, [chapters, characters, lore, projectPath, currentChapter, currentComponentId]);
 
     const reorderItem = useCallback(async (startIndex: number, endIndex: number, mode: ViewMode) => {
-        const currentRegistry: Registry = { chapters, characters, lore };
+        if (mode === 'settings') return;
 
-        const list = Array.from(currentRegistry[mode]);
+        const currentRegistry: Registry = { chapters, characters, lore };
+        const registryMode = mode as keyof Registry;
+
+        const list = Array.from(currentRegistry[registryMode]);
         const [removed] = list.splice(startIndex, 1);
         list.splice(endIndex, 0, removed);
 
-        currentRegistry[mode] = list;
+        currentRegistry[registryMode] = list;
         await saveRegistry(currentRegistry);
     }, [chapters, characters, lore, projectPath]);
 
@@ -216,15 +261,39 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         });
     }, [projectPath]);
 
+    const updateSettings = useCallback(async (newPartialSettings: Partial<ProjectSettings>) => {
+        const updatedSettings = { ...settings, ...newPartialSettings };
+        await saveSettings(updatedSettings);
+    }, [settings, projectPath]);
+
     // Charge le registre au montage
     useEffect(() => {
         refreshFiles();
     }, [refreshFiles]);
 
+    // Sauvegarde automatique du contexte UI (Vue active, dernier élément sélectionné)
+    const isFirstRender = useRef(true);
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
+        const timeoutId = setTimeout(() => {
+            updateSettings({
+                lastViewMode: viewMode,
+                lastChapterId: currentChapter,
+                lastComponentId: currentComponentId
+            });
+        }, 1500); // 1.5s de debounce pour ne pas spammer d'écritures disque 
+
+        return () => clearTimeout(timeoutId);
+    }, [viewMode, currentChapter, currentComponentId, updateSettings]);
+
     // Mémoïsation de la valeur du contexte pour éviter les re-rendus enfants inutiles
     const contextValue = useMemo(() => ({
         projectPath,
-        chapters, characters, lore, stats,
+        chapters, characters, lore, stats, settings,
         refreshFiles,
         createItem,
         renameItem,
@@ -232,12 +301,12 @@ export function ProjectProvider({ children, projectPath }: { children: ReactNode
         currentChapter, setCurrentChapter,
         currentComponentId, setCurrentComponentId,
         viewMode, setViewMode,
-        updateDailyWordCount, updateDailyGoal
+        updateDailyWordCount, updateDailyGoal, updateSettings
     }), [
-        projectPath, chapters, characters, lore, stats,
+        projectPath, chapters, characters, lore, stats, settings,
         refreshFiles, createItem, renameItem, reorderItem,
         currentChapter, currentComponentId, viewMode,
-        updateDailyWordCount, updateDailyGoal
+        updateDailyWordCount, updateDailyGoal, updateSettings
     ]);
 
     return (
