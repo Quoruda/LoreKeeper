@@ -1,43 +1,69 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import type { ViewMode } from '../types';
 
 interface ProjectContextType {
     projectPath: string;
     chapters: string[];
-    refreshChapters: () => Promise<void>;
+    characters: string[];
+    lore: string[];
+    refreshFiles: () => Promise<void>;
     currentChapter: string | null;
     setCurrentChapter: (chapter: string | null) => void;
+    currentComponentId: string | null;
+    setCurrentComponentId: (id: string | null) => void;
+    viewMode: ViewMode;
+    setViewMode: (mode: ViewMode) => void;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 export function ProjectProvider({ children, projectPath }: { children: ReactNode, projectPath: string }) {
     const [chapters, setChapters] = useState<string[]>([]);
+    const [characters, setCharacters] = useState<string[]>([]);
+    const [lore, setLore] = useState<string[]>([]);
     const [currentChapter, setCurrentChapter] = useState<string | null>(null);
+    const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<ViewMode>('chapters');
 
-    const refreshChapters = async () => {
+    const refreshFiles = async () => {
         try {
+            // Refresh chapters
             const chaptersPath = `${projectPath}/chapters`;
-            // Appelle la commande Rust pour lister les fichiers du dossier chapters
-            const files: string[] = await invoke('list_files', { path: chaptersPath });
-            setChapters(files);
+            const chapterFiles: string[] = await invoke('list_files', { path: chaptersPath });
+            setChapters(chapterFiles.filter(f => f.endsWith('.md')));
 
-            // Sélectionne le premier chapitre par défaut s'il y en a un et qu'aucun n'est sélectionné
-            if (files.length > 0 && !currentChapter) {
-                setCurrentChapter(files[0]);
-            }
+            // Refresh characters
+            const charsPath = `${projectPath}/characters`;
+            const charFiles: string[] = await invoke('list_files', { path: charsPath });
+            setCharacters(charFiles.filter(f => f.endsWith('.json')));
+
+            // Refresh lore
+            const lorePath = `${projectPath}/lore`;
+            const loreFiles: string[] = await invoke('list_files', { path: lorePath });
+            setLore(loreFiles.filter(f => f.endsWith('.json')));
+
+            // Default selection logic on initial load could go here if needed
         } catch (error) {
-            console.error("Erreur lors de la récupération des chapitres:", error);
+            console.error("Erreur lors de la récupération des fichiers:", error);
         }
     };
 
-    // Charge les chapitres au montage du provider
+    // Charge les fichiers au montage du provider
     useEffect(() => {
-        refreshChapters();
+        refreshFiles();
     }, [projectPath]);
 
     return (
-        <ProjectContext.Provider value={{ projectPath, chapters, refreshChapters, currentChapter, setCurrentChapter }}>
+        <ProjectContext.Provider value={{
+            projectPath,
+            chapters, characters, lore,
+            refreshFiles,
+            currentChapter, setCurrentChapter,
+            currentComponentId, setCurrentComponentId,
+            viewMode, setViewMode
+        }}>
             {children}
         </ProjectContext.Provider>
     );

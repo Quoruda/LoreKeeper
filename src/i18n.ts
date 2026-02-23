@@ -30,6 +30,10 @@ const resources = {
                 "currentBook": "Current Book",
                 "newChapter": "New chapter",
                 "chapterNamePlaceholder": "Chapter name...",
+                "newCharacter": "New character",
+                "charNamePlaceholder": "Character name...",
+                "newLore": "New lore entry",
+                "loreNamePlaceholder": "Entry name...",
                 "settings": "Settings",
                 "errCreate": "Unable to create file:"
             },
@@ -39,6 +43,30 @@ const resources = {
                 "noChapter": "No chapter selected",
                 "noChapterDesc": "Select a chapter in the sidebar or create a new one to start writing.",
                 "placeholder": "Write your story here..."
+            },
+            "charEditor": {
+                "title": "Character Profile",
+                "noSelection": "No character selected. Choose one from the sidebar or create a new one.",
+                "nameLabel": "Name",
+                "namePlaceholder": "Character's name...",
+                "roleLabel": "Role",
+                "rolePlaceholder": "Protagonist, Antagonist, etc.",
+                "descLabel": "General Description",
+                "descPlaceholder": "Write a summary of the character...",
+                "appearanceLabel": "Appearance",
+                "appearancePlaceholder": "Physical details, clothing, distinguishing features...",
+                "personalityLabel": "Personality",
+                "personalityPlaceholder": "Traits, flaws, motivations..."
+            },
+            "loreEditor": {
+                "title": "Lore Entry",
+                "noSelection": "No entry selected. Choose one from the sidebar or create a new one.",
+                "nameLabel": "Title",
+                "namePlaceholder": "Title of the entry...",
+                "categoryLabel": "Category",
+                "categoryPlaceholder": "Location, Artifact, Event, etc.",
+                "descLabel": "Content & Details",
+                "descPlaceholder": "Write the details of this lore entry here..."
             },
             "aipanel": {
                 "title": "AI Reader",
@@ -80,6 +108,10 @@ const resources = {
                 "currentBook": "Livre Actuel",
                 "newChapter": "Nouveau chapitre",
                 "chapterNamePlaceholder": "Nom du chapitre...",
+                "newCharacter": "Nouveau personnage",
+                "charNamePlaceholder": "Nom du personnage...",
+                "newLore": "Nouvelle entrée",
+                "loreNamePlaceholder": "Nom de l'entrée...",
                 "settings": "Paramètres",
                 "errCreate": "Impossible de créer le fichier:"
             },
@@ -89,6 +121,30 @@ const resources = {
                 "noChapter": "Aucun chapitre sélectionné",
                 "noChapterDesc": "Sélectionnez ou créez un chapitre pour commencer à écrire.",
                 "placeholder": "Écrivez votre histoire ici..."
+            },
+            "charEditor": {
+                "title": "Fiche Personnage",
+                "noSelection": "Aucun personnage sélectionné. Choisissez-en un ou créez-en un nouveau.",
+                "nameLabel": "Nom",
+                "namePlaceholder": "Nom complet...",
+                "roleLabel": "Rôle",
+                "rolePlaceholder": "Protagoniste, Antagoniste, Allié...",
+                "descLabel": "Description Manuelle",
+                "descPlaceholder": "Décrivez ce personnage dans les grandes lignes...",
+                "appearanceLabel": "Apparence Physique",
+                "appearancePlaceholder": "Traits, cicatrices, style vestimentaire...",
+                "personalityLabel": "Personnalité & Caractère",
+                "personalityPlaceholder": "Défauts, qualités, tiques psychologiques..."
+            },
+            "loreEditor": {
+                "title": "Fiche Univers",
+                "noSelection": "Aucune entrée sélectionnée. Choisissez-en une ou créez-en une nouvelle.",
+                "nameLabel": "Titre",
+                "namePlaceholder": "Titre officiel de l'entrée...",
+                "categoryLabel": "Catégorie",
+                "categoryPlaceholder": "Lieu, Artefact, Espèce, Évènement...",
+                "descLabel": "Description Détaillée",
+                "descPlaceholder": "Consignez ici tous les détails de cet élément d'univers..."
             },
             "aipanel": {
                 "title": "Lecteur IA",

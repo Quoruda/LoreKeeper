@@ -1,9 +1,32 @@
 import { useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import MainEditor from './components/layout/MainEditor';
+import CharacterEditor from './components/layout/CharacterEditor';
+import LoreEditor from './components/layout/LoreEditor';
 import AIPanel from './components/layout/AIPanel';
 import WelcomeScreen from './components/WelcomeScreen';
-import { ProjectProvider } from './contexts/ProjectContext';
+import { ProjectProvider, useProject } from './contexts/ProjectContext';
+
+function MainLayout() {
+  const { projectPath, viewMode } = useProject();
+
+  if (!projectPath) {
+    return null; // ou un spinner
+  }
+
+  return (
+    <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden selection:bg-primary-500/30">
+      <Sidebar projectPath={projectPath} />
+
+      {/* Rendu conditionnel de l'éditeur */}
+      {viewMode === 'chapters' && <MainEditor />}
+      {viewMode === 'characters' && <CharacterEditor />}
+      {viewMode === 'lore' && <LoreEditor />}
+
+      <AIPanel />
+    </div>
+  );
+}
 
 function App() {
   const [projectPath, setProjectPath] = useState<string | null>(null);
@@ -16,11 +39,7 @@ function App() {
   // Sinon, on affiche l'éditeur complet enveloppé par le contexte du projet
   return (
     <ProjectProvider projectPath={projectPath}>
-      <div className="flex h-screen w-screen overflow-hidden text-gray-100 bg-gray-900 select-none">
-        <Sidebar projectPath={projectPath} />
-        <MainEditor />
-        <AIPanel />
-      </div>
+      <MainLayout />
     </ProjectProvider>
   );
 }

@@ -2,17 +2,24 @@ import { Book, Users, ScrollText, BarChart2, Settings, ChevronRight, FileText, C
 import { useProject } from '../../contexts/ProjectContext';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ViewMode } from '../../types';
 
-const navigationKeys = [
-    { key: 'sidebar.nav.chapters', icon: Book, current: true },
-    { key: 'sidebar.nav.characters', icon: Users, current: false },
-    { key: 'sidebar.nav.lore', icon: ScrollText, current: false },
-    { key: 'sidebar.nav.statistics', icon: BarChart2, current: false },
+const navigationKeys: { key: string; icon: any; mode: ViewMode | 'statistics' }[] = [
+    { key: 'sidebar.nav.chapters', icon: Book, mode: 'chapters' },
+    { key: 'sidebar.nav.characters', icon: Users, mode: 'characters' },
+    { key: 'sidebar.nav.lore', icon: ScrollText, mode: 'lore' },
+    { key: 'sidebar.nav.statistics', icon: BarChart2, mode: 'statistics' },
 ];
 
 export default function Sidebar({ projectPath }: { projectPath: string }) {
     const { t } = useTranslation();
-    const { chapters, currentChapter, setCurrentChapter, refreshChapters } = useProject();
+    const {
+        chapters, characters, lore,
+        currentChapter, setCurrentChapter,
+        currentComponentId, setCurrentComponentId,
+        viewMode, setViewMode,
+        refreshFiles
+    } = useProject();
     const [isCreatingChapter, setIsCreatingChapter] = useState(false);
     const [newChapterTitle, setNewChapterTitle] = useState("");
 
@@ -28,15 +35,37 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
             return;
         }
 
-        const fileName = `${title.replace(/[/\\?%*:|"<>]/g, '-')}.md`;
+        let fileName = `${title.replace(/[/\\?%*:|"<>]/g, '-')}`;
+        let folder = 'chapters';
+        let content = '';
+
+        if (viewMode === 'chapters') {
+            fileName += '.md';
+            content = `# ${title}\n\n`;
+        } else if (viewMode === 'characters') {
+            fileName += '.json';
+            folder = 'characters';
+            content = JSON.stringify({ id: fileName.replace('.json', ''), name: title, role: "", description: "", appearance: "", personality: "" }, null, 2);
+        } else if (viewMode === 'lore') {
+            fileName += '.json';
+            folder = 'lore';
+            content = JSON.stringify({ id: fileName.replace('.json', ''), title: title, category: "", content: "" }, null, 2);
+        }
+
         try {
             const { invoke } = await import('@tauri-apps/api/core');
             await invoke('write_file', {
-                path: `${projectPath}/chapters/${fileName}`,
-                content: `# ${title}\n\n`
+                path: `${projectPath}/${folder}/${fileName}`,
+                content
             });
-            await refreshChapters();
-            setCurrentChapter(fileName);
+            await refreshFiles();
+
+            if (viewMode === 'chapters') {
+                setCurrentChapter(fileName);
+            } else {
+                setCurrentComponentId(fileName);
+            }
+
             // Re-intialiser
             setNewChapterTitle("");
             setIsCreatingChapter(false);
@@ -66,54 +95,97 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                         <a
                             key={item.key}
                             href="#"
-                            className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${item.current
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (item.mode !== 'statistics') setViewMode(item.mode);
+                            }}
+                            className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${viewMode === item.mode
                                 ? 'bg-gray-800 text-white'
                                 : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
                                 }`}
                         >
                             <Icon className="w-5 h-5 mr-3 shrink-0" />
                             {t(item.key)}
-                            {item.current && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+                            {viewMode === item.mode && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
                         </a>
                     );
                 })}
 
-                {/* Dynamic sub-items for Chapters */}
+                {/* Dynamic sub-items list */}
                 <div className="mt-4 pt-4 border-t border-gray-800/50">
                     <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                        {t('sidebar.currentBook')}
+                        {viewMode === 'chapters' && t('sidebar.currentBook')}
+                        {viewMode === 'characters' && t('sidebar.nav.characters')}
+                        {viewMode === 'lore' && t('sidebar.nav.lore')}
                     </p>
                     <div className="space-y-1">
-                        {chapters.map((chapterFile) => (
+                        {/* Chapters */}
+                        {viewMode === 'chapters' && chapters.map((file) => (
                             <button
-                                key={chapterFile}
-                                onClick={() => setCurrentChapter(chapterFile)}
-                                className={`w - full flex items - center px - 3 py - 2 text - sm rounded - lg group transition - colors ${currentChapter === chapterFile
+                                key={file}
+                                onClick={() => setCurrentChapter(file)}
+                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentChapter === file
                                     ? 'text-white bg-primary-500/20'
                                     : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
-                                    } `}
+                                    }`}
                             >
-                                <FileText className={`w - 4 h - 4 mr - 3 shrink - 0 ${currentChapter === chapterFile ? 'text-primary-400' : 'text-gray-500 group-hover:text-primary-400'
-                                    } `} />
-                                <span className="truncate">{chapterFile.replace('.md', '')}</span>
+                                <FileText className={`w-4 h-4 mr-3 shrink-0 ${currentChapter === file ? 'text-primary-400' : 'text-gray-500 group-hover:text-primary-400'
+                                    }`} />
+                                <span className="truncate">{file.replace('.md', '')}</span>
+                            </button>
+                        ))}
+
+                        {/* Characters */}
+                        {viewMode === 'characters' && characters.map((file) => (
+                            <button
+                                key={file}
+                                onClick={() => setCurrentComponentId(file)}
+                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === file
+                                    ? 'text-white bg-indigo-500/20'
+                                    : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
+                                    }`}
+                            >
+                                <Users className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === file ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
+                                    }`} />
+                                <span className="truncate">{file.replace('.json', '')}</span>
+                            </button>
+                        ))}
+
+                        {/* Lore */}
+                        {viewMode === 'lore' && lore.map((file) => (
+                            <button
+                                key={file}
+                                onClick={() => setCurrentComponentId(file)}
+                                className={`w-full flex items-center px-3 py-2 text-sm rounded-lg group transition-colors ${currentComponentId === file
+                                    ? 'text-white bg-indigo-500/20'
+                                    : 'text-gray-300 hover:text-white hover:bg-gray-800/30'
+                                    }`}
+                            >
+                                <ScrollText className={`w-4 h-4 mr-3 shrink-0 ${currentComponentId === file ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
+                                    }`} />
+                                <span className="truncate">{file.replace('.json', '')}</span>
                             </button>
                         ))}
 
                         {isCreatingChapter ? (
-                            <form onSubmit={handleCreateSubmit} className="px-3 py-2 flex items-center space-x-2 bg-gray-800/50 rounded-lg border border-primary-500/50">
-                                <FileText className="w-4 h-4 text-primary-400 shrink-0" />
+                            <form onSubmit={handleCreateSubmit} className={`px-3 py-2 flex items-center space-x-2 bg-gray-800/50 rounded-lg border ${viewMode === 'chapters' ? 'border-primary-500/50' : 'border-indigo-500/50'}`}>
+                                {viewMode === 'chapters' ? <FileText className="w-4 h-4 text-primary-400 shrink-0" /> : <Users className="w-4 h-4 text-indigo-400 shrink-0" />}
                                 <input
                                     autoFocus
                                     type="text"
                                     value={newChapterTitle}
                                     onChange={(e) => setNewChapterTitle(e.target.value)}
-                                    placeholder={t('sidebar.chapterNamePlaceholder')}
+                                    placeholder={
+                                        viewMode === 'chapters' ? t('sidebar.chapterNamePlaceholder') :
+                                            viewMode === 'characters' ? t('sidebar.charNamePlaceholder') :
+                                                t('sidebar.loreNamePlaceholder')
+                                    }
                                     className="flex-1 bg-transparent text-sm text-white outline-none min-w-0"
                                     onBlur={() => {
                                         if (!newChapterTitle.trim()) setIsCreatingChapter(false);
                                     }}
                                 />
-                                <button type="submit" className="text-primary-400 hover:text-primary-300 transition-colors">
+                                <button type="submit" className={`${viewMode === 'chapters' ? 'text-primary-400 hover:text-primary-300' : 'text-indigo-400 hover:text-indigo-300'} transition-colors`}>
                                     <Check className="w-4 h-4" />
                                 </button>
                                 <button type="button" onClick={() => setIsCreatingChapter(false)} className="text-gray-500 hover:text-gray-300 transition-colors">
@@ -126,7 +198,11 @@ export default function Sidebar({ projectPath }: { projectPath: string }) {
                                 className="w-full flex items-center px-3 py-2 text-sm text-gray-500 hover:text-white hover:bg-gray-800/30 rounded-lg italic group"
                             >
                                 <span className="w-4 h-4 mr-3 shrink-0 text-center font-bold text-lg leading-none">+</span>
-                                {t('sidebar.newChapter')}
+                                {
+                                    viewMode === 'chapters' ? t('sidebar.newChapter') :
+                                        viewMode === 'characters' ? t('sidebar.newCharacter') :
+                                            t('sidebar.newLore')
+                                }
                             </button>
                         )}
                     </div>
