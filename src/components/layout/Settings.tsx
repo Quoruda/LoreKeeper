@@ -13,6 +13,7 @@ export default function Settings() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         await updateSettings({
+            aiProvider: apiKey ? 'mistral' : 'none',
             mistralApiKey: apiKey,
             mistralModel: model,
             language: language

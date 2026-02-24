@@ -27,7 +27,7 @@ function MainLayout() {
       {viewMode === 'statistics' && <Statistics />}
       {viewMode === 'settings' && <Settings />}
 
-      <AIPanel />
+      {viewMode === 'chapters' && <AIPanel />}
     </div>
   );
 }

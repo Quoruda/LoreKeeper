@@ -19,6 +19,7 @@ export type ViewMode = 'chapters' | 'characters' | 'lore' | 'settings';
 export interface RegistryItem {
     id: string; // Identifier unique et nom du fichier
     title: string; // Vrai titre (modifiable)
+    lastModified?: number; // Horodatage de la dernière modification du contenu
 }
 
 export interface Registry {
@@ -41,3 +42,15 @@ export interface ProjectSettings {
     lastChapterId?: string | null;
     lastComponentId?: string | null;
 }
+
+export interface AINote {
+    title: string;
+    description: string;
+}
+
+export interface AINoteData {
+    notes: AINote[];
+    updatedAt: number;
+}
+
+export type AINotesRegistry = Record<string, AINoteData>;

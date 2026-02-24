@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo, u
 import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
-import type { ViewMode, Registry, RegistryItem, ProjectStats, ProjectSettings } from '../types';
+import type { ViewMode, Registry, RegistryItem, ProjectStats, ProjectSettings, AINote, AINotesRegistry } from '../types';
 
 interface ProjectContextType {
     projectPath: string;
@@ -11,6 +11,8 @@ interface ProjectContextType {
     lore: RegistryItem[];
     stats: ProjectStats;
     settings: ProjectSettings;
+    aiNotes: AINotesRegistry;
+    saveAiNotes: (chapterId: string, notes: AINote[]) => Promise<void>;
     refreshFiles: () => Promise<void>;
     createItem: (title: string, mode: ViewMode) => Promise<void>;
     renameItem: (id: string, newTitle: string, mode: ViewMode) => Promise<void>;
@@ -21,6 +23,7 @@ interface ProjectContextType {
     setCurrentComponentId: (id: string | null) => void;
     viewMode: ViewMode | 'statistics';
     setViewMode: (mode: ViewMode | 'statistics') => void;
+    updateItemModified: (id: string, timestamp: number) => Promise<void>;
     updateDailyWordCount: (delta: number) => Promise<void>;
     updateDailyGoal: (goal: number) => Promise<void>;
     updateSettings: (newSettings: Partial<ProjectSettings>) => Promise<void>;
@@ -40,6 +43,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         mistralModel: 'open-mistral-nemo',
         language: 'fr'
     });
+    const [aiNotes, setAiNotes] = useState<AINotesRegistry>({});
     const [currentChapter, setCurrentChapter] = useState<string | null>(null);
     const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode | 'statistics'>('chapters');
@@ -152,6 +156,34 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
             await saveSettings(initialSettings);
             // setSettings est déjà appelé dans saveSettings()
         }
+
+        try {
+            const aiNotesContent: string = await invoke('read_file', { path: `${projectPath}/ainotes.json` });
+            const aiNotesData = JSON.parse(aiNotesContent);
+
+            const sanitizedData: AINotesRegistry = {};
+            // Assainissement pour la rétro-compatibilité (ancien format en Array simple)
+            for (const key in aiNotesData) {
+                if (Array.isArray(aiNotesData[key])) {
+                    sanitizedData[key] = { notes: aiNotesData[key], updatedAt: Date.now() };
+                } else if (aiNotesData[key] && typeof aiNotesData[key] === 'object' && Array.isArray(aiNotesData[key].notes)) {
+                    sanitizedData[key] = aiNotesData[key];
+                }
+            }
+
+            setAiNotes(sanitizedData);
+        } catch {
+            const emptyNotes = {};
+            try {
+                await invoke('write_file', {
+                    path: `${projectPath}/ainotes.json`,
+                    content: JSON.stringify(emptyNotes, null, 2)
+                });
+            } catch (e) {
+                // Ignore error if directory doesn't exist
+            }
+            setAiNotes(emptyNotes);
+        }
     };
 
     const refreshFiles = useCallback(async () => {
@@ -224,7 +256,23 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
 
             currentRegistry[registryMode][itemIndex] = { id: newId, title: newTitle };
 
-            if (mode === 'chapters' && currentChapter === oldId) setCurrentChapter(newId);
+            if (mode === 'chapters') {
+                if (currentChapter === oldId) setCurrentChapter(newId);
+                // Renomme la clé associée dans le dictionnaire des notes IA si elle existe
+                setAiNotes(prev => {
+                    if (prev[oldId]) {
+                        const next = { ...prev };
+                        next[newId] = next[oldId];
+                        delete next[oldId];
+                        invoke('write_file', {
+                            path: `${projectPath}/ainotes.json`,
+                            content: JSON.stringify(next, null, 2)
+                        }).catch(e => console.error("Erreur saveAiNotes rename:", e));
+                        return next;
+                    }
+                    return prev;
+                });
+            }
             if ((mode === 'characters' || mode === 'lore') && currentComponentId === oldId) setCurrentComponentId(newId);
 
             await saveRegistry(currentRegistry);
@@ -246,6 +294,17 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
 
         currentRegistry[registryMode] = list;
         await saveRegistry(currentRegistry);
+    }, [chapters, characters, lore, projectPath]);
+
+    const updateItemModified = useCallback(async (id: string, timestamp: number) => {
+        const currentRegistry: Registry = { chapters, characters, lore };
+        // Le mode est 'chapters', seule cette entité a besoin du lastModified pour l'IA pour le moment.
+        // On cherche le chapitre correspondant.
+        const idx = currentRegistry.chapters.findIndex(i => i.id === id);
+        if (idx !== -1) {
+            currentRegistry.chapters[idx] = { ...currentRegistry.chapters[idx], lastModified: timestamp };
+            await saveRegistry(currentRegistry);
+        }
     }, [chapters, characters, lore, projectPath]);
 
     const updateDailyWordCount = useCallback(async (delta: number) => {
@@ -274,6 +333,17 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         const updatedSettings = { ...settings, ...newPartialSettings };
         await saveSettings(updatedSettings);
     }, [settings, projectPath]);
+
+    const saveAiNotes = useCallback(async (chapterId: string, notes: AINote[]) => {
+        setAiNotes(prev => {
+            const newAiNotes = { ...prev, [chapterId]: { notes, updatedAt: Date.now() } };
+            invoke('write_file', {
+                path: `${projectPath}/ainotes.json`,
+                content: JSON.stringify(newAiNotes, null, 2)
+            }).catch(e => console.error("Erreur saveAiNotes:", e));
+            return newAiNotes;
+        });
+    }, [projectPath]);
 
     const closeProject = useCallback(() => {
         onCloseProject();
@@ -313,7 +383,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
     // Mémoïsation de la valeur du contexte pour éviter les re-rendus enfants inutiles
     const contextValue = useMemo(() => ({
         projectPath,
-        chapters, characters, lore, stats, settings,
+        chapters, characters, lore, stats, settings, aiNotes,
         refreshFiles,
         createItem,
         renameItem,
@@ -321,12 +391,14 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         currentChapter, setCurrentChapter,
         currentComponentId, setCurrentComponentId,
         viewMode, setViewMode,
-        updateDailyWordCount, updateDailyGoal, updateSettings, closeProject
+        updateItemModified,
+        updateDailyWordCount, updateDailyGoal, updateSettings, saveAiNotes, closeProject
     }), [
-        projectPath, chapters, characters, lore, stats, settings,
+        projectPath, chapters, characters, lore, stats, settings, aiNotes,
         refreshFiles, createItem, renameItem, reorderItem,
         currentChapter, currentComponentId, viewMode,
-        updateDailyWordCount, updateDailyGoal, updateSettings, closeProject
+        updateItemModified,
+        updateDailyWordCount, updateDailyGoal, updateSettings, saveAiNotes, closeProject
     ]);
 
     return (

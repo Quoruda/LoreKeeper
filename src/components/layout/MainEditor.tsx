@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 
 export default function MainEditor() {
     const { t } = useTranslation();
-    const { projectPath, currentChapter, chapters, renameItem, updateDailyWordCount } = useProject();
+    const { projectPath, currentChapter, chapters, renameItem, updateDailyWordCount, updateItemModified } = useProject();
     const [content, setContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [editTitle, setEditTitle] = useState('');
@@ -175,6 +175,8 @@ export default function MainEditor() {
                     path: `${activePath}/chapters/${activeChapter}`,
                     content: newContent
                 });
+
+                await updateItemModified(activeChapter, Date.now());
 
                 saveTimerRef.current = null; // Timer acquitté
 
