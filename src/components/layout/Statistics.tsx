@@ -42,8 +42,12 @@ export default function Statistics() {
         if (projectPath && chapters.length > 0) {
             loadChapterStats();
         } else {
-            setChapterStats([]);
-            setTotalManuscriptWords(0);
+            Promise.resolve().then(() => {
+                if (!isCancelled) {
+                    setChapterStats([]);
+                    setTotalManuscriptWords(0);
+                }
+            });
         }
         return () => { isCancelled = true; };
     }, [projectPath, chapters]);

@@ -16,8 +16,8 @@ export default function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     useEffect(() => {
         const lastPath = localStorage.getItem('lorekeeper_last_project');
         if (lastPath) {
-            setManualPath(lastPath);
             const autoOpen = async () => {
+                setManualPath(lastPath);
                 setIsLoading(true);
                 try {
                     await invoke('init_project', { path: lastPath });

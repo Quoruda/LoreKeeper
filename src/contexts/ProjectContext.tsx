@@ -55,16 +55,16 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         }
     }, [settings.language, i18n]);
 
-    const slugify = (text: string) => {
+    const slugify = useCallback((text: string) => {
         return text.toString().toLowerCase()
             .replace(/\s+/g, '-')           // Remplace les espaces par -
-            .replace(/[^\w\-]+/g, '')       // Retire tous les caractères non-word (pas de lettres, chiffres, underscores, tirets)
-            .replace(/\-\-+/g, '-')         // Remplace les multiples - par un seul
+            .replace(/[^\w-]+/g, '')       // Retire tous les caractères non-word (pas de lettres, chiffres, underscores, tirets)
+            .replace(/--+/g, '-')         // Remplace les multiples - par un seul
             .replace(/^-+/, '')             // Retire les - du début
             .replace(/-+$/, '');            // Retire les - de la fin
-    };
+    }, []);
 
-    const saveRegistry = async (newRegistry: Registry) => {
+    const saveRegistry = useCallback(async (newRegistry: Registry) => {
         try {
             await invoke('write_file', {
                 path: `${projectPath}/lorekeeper.json`,
@@ -76,9 +76,9 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         } catch (error) {
             console.error("Erreur saveRegistry:", error);
         }
-    };
+    }, [projectPath]);
 
-    const saveStats = async (newStats: ProjectStats) => {
+    const saveStats = useCallback(async (newStats: ProjectStats) => {
         try {
             await invoke('write_file', {
                 path: `${projectPath}/stats.json`,
@@ -88,9 +88,9 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         } catch (error) {
             console.error("Erreur saveStats:", error);
         }
-    };
+    }, [projectPath]);
 
-    const saveSettings = async (newSettings: ProjectSettings) => {
+    const saveSettings = useCallback(async (newSettings: ProjectSettings) => {
         try {
             await invoke('write_file', {
                 path: `${projectPath}/settings.json`,
@@ -100,9 +100,9 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         } catch (error) {
             console.error("Erreur saveSettings:", error);
         }
-    };
+    }, [projectPath]);
 
-    const loadOrBuildRegistry = async () => {
+    const loadOrBuildRegistry = useCallback(async () => {
         try {
             const content: string = await invoke('read_file', { path: `${projectPath}/lorekeeper.json` });
             const data = JSON.parse(content) as Registry;
@@ -179,16 +179,16 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
                     path: `${projectPath}/ainotes.json`,
                     content: JSON.stringify(emptyNotes, null, 2)
                 });
-            } catch (e) {
+            } catch {
                 // Ignore error if directory doesn't exist
             }
             setAiNotes(emptyNotes);
         }
-    };
+    }, [projectPath, saveRegistry, saveStats, saveSettings]);
 
     const refreshFiles = useCallback(async () => {
         await loadOrBuildRegistry();
-    }, [projectPath]);
+    }, [loadOrBuildRegistry]);
 
     const createItem = useCallback(async (title: string, mode: ViewMode) => {
         const timestamp = Date.now();
@@ -226,7 +226,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
             console.error("Erreur lors de la création", error);
             throw error;
         }
-    }, [chapters, characters, lore, projectPath]);
+    }, [chapters, characters, lore, projectPath, saveRegistry, slugify]);
 
     const renameItem = useCallback(async (oldId: string, newTitle: string, mode: ViewMode) => {
         if (mode === 'settings') return;
@@ -244,9 +244,9 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         const slug = slugify(newTitle);
         const newBaseId = `${timestamp}_${slug || 'untitled'}`;
 
-        let folder = mode;
-        let ext = mode === 'chapters' ? '.md' : '.json';
-        let newId = `${newBaseId}${ext}`;
+        const folder = mode;
+        const ext = mode === 'chapters' ? '.md' : '.json';
+        const newId = `${newBaseId}${ext}`;
 
         try {
             await invoke('rename_file', {
@@ -280,7 +280,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
             console.error("Erreur lors du renommage physique:", error);
             alert("Erreur: Impossible de renommer le fichier source. " + error);
         }
-    }, [chapters, characters, lore, projectPath, currentChapter, currentComponentId]);
+    }, [chapters, characters, lore, projectPath, currentChapter, currentComponentId, saveRegistry, slugify]);
 
     const reorderItem = useCallback(async (startIndex: number, endIndex: number, mode: ViewMode) => {
         if (mode === 'settings') return;
@@ -294,7 +294,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
 
         currentRegistry[registryMode] = list;
         await saveRegistry(currentRegistry);
-    }, [chapters, characters, lore, projectPath]);
+    }, [chapters, characters, lore, saveRegistry]);
 
     const updateItemModified = useCallback(async (id: string, timestamp: number) => {
         const currentRegistry: Registry = { chapters, characters, lore };
@@ -305,7 +305,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
             currentRegistry.chapters[idx] = { ...currentRegistry.chapters[idx], lastModified: timestamp };
             await saveRegistry(currentRegistry);
         }
-    }, [chapters, characters, lore, projectPath]);
+    }, [chapters, characters, lore, saveRegistry]);
 
     const updateDailyWordCount = useCallback(async (delta: number) => {
         if (delta === 0) return;
@@ -319,7 +319,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
             saveStats(newStats); // Ne pas await pour ne pas bloquer l'UI
             return newStats;
         });
-    }, [projectPath]);
+    }, [saveStats]);
 
     const updateDailyGoal = useCallback(async (goal: number) => {
         setStats(prev => {
@@ -327,12 +327,12 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
             saveStats(newStats);
             return newStats;
         });
-    }, [projectPath]);
+    }, [saveStats]);
 
     const updateSettings = useCallback(async (newPartialSettings: Partial<ProjectSettings>) => {
         const updatedSettings = { ...settings, ...newPartialSettings };
         await saveSettings(updatedSettings);
-    }, [settings, projectPath]);
+    }, [settings, saveSettings]);
 
     const saveAiNotes = useCallback(async (chapterId: string, notes: AINote[]) => {
         setAiNotes(prev => {
@@ -351,7 +351,12 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
 
     // Charge le registre au montage
     useEffect(() => {
-        refreshFiles();
+        let isMounted = true;
+        const init = async () => {
+            if (isMounted) await refreshFiles();
+        }
+        init();
+        return () => { isMounted = false; };
     }, [refreshFiles]);
 
     // Synchronisation de la langue avec i18next

@@ -138,8 +138,8 @@ Tu DOIS RÉPONDRE UNIQUEMENT avec un objet JSON strictement valide avec le forma
                 setError("Impossible de lire la réponse de l'IA. Essaye un Modèle plus large.");
             }
 
-        } catch (err: any) {
-            setError(err.message || "Erreur lors de l'analyse locale.");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Erreur lors de l'analyse locale.");
         } finally {
             setIsLoading(false);
         }

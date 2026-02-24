@@ -52,13 +52,17 @@ export const generateWithMistral = async (
         const text = data.choices?.[0]?.message?.content || "";
 
         return { text };
-    } catch (error: any) {
+    } catch (error: unknown) {
         clearTimeout(timeoutId);
 
         // Gestion de l'erreur réseau ou du Timeout
-        if (error.name === 'AbortError') {
-            return { text: "", error: "Le serveur Mistral a mis trop de temps à répondre (Timeout). Veuillez réessayer.", isTimeout: true };
+        if (error instanceof Error) {
+            if (error.name === 'AbortError') {
+                return { text: "", error: "Le serveur Mistral a mis trop de temps à répondre (Timeout). Veuillez réessayer.", isTimeout: true };
+            }
+            return { text: "", error: `Erreur réseau : ${error.message}. Vérifiez votre connexion internet.` };
         }
-        return { text: "", error: `Erreur réseau : ${error.message}. Vérifiez votre connexion internet.` };
+
+        return { text: "", error: "Erreur réseau inconnue. Vérifiez votre connexion internet." };
     }
 };

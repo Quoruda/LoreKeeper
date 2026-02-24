@@ -58,12 +58,16 @@ export default function Settings() {
                 setTestStatus('error');
                 setTestMessage(`Erreur de l'API (${response.status} ${response.statusText}).`);
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             setTestStatus('error');
-            if (error.name === 'AbortError') {
-                setTestMessage('Délai dépassé (Timeout). Le réseau est trop lent ou bloqué.');
+            if (error instanceof Error) {
+                if (error.name === 'AbortError') {
+                    setTestMessage('Délai dépassé (Timeout). Le réseau est trop lent ou bloqué.');
+                } else {
+                    setTestMessage(`Impossible de joindre le serveur : ${error.message}`);
+                }
             } else {
-                setTestMessage(`Impossible de joindre le serveur : ${error.message}`);
+                setTestMessage('Impossible de joindre le serveur (Erreur inconnue).');
             }
         }
     };

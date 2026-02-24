@@ -35,7 +35,13 @@ export default function MainEditor() {
     // Composant de rendu personnalisé pour HybridMarkdownEditor
     // Permet d'injecter tous les composants complexes de ReactMarkdown (Gras, liens, code...) 
     // à l'intérieur du conteneur de type (h1, p, blockquote) déjà géré par l'éditeur hybride.
-    const renderMarkdownLine = useCallback(({ line, isActive, defaultContent }: any) => {
+    interface RenderMarkdownLineProps {
+        line: string;
+        isActive: boolean;
+        defaultContent: React.ReactNode;
+    }
+
+    const renderMarkdownLine = useCallback(({ line, isActive, defaultContent }: RenderMarkdownLineProps) => {
         if (isActive) return defaultContent;
         if (line.trim() === '') return <>{'\u00A0'}</>;
 
@@ -199,7 +205,7 @@ export default function MainEditor() {
                 setIsSaving(false);
             }
         }, 1000); // Délai de 1 seconde après la frappe
-    }, [projectPath, currentChapter, updateDailyWordCount]);
+    }, [projectPath, currentChapter, updateDailyWordCount, updateItemModified]);
 
     // Si aucun chapitre n'est sélectionné
     if (!currentChapter) {
