@@ -1,14 +1,52 @@
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
-import { useState } from 'react';
-import { Target, TrendingUp, BookOpen, Clock } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, AreaChart, Area } from 'recharts';
+import { useState, useEffect } from 'react';
+import { Target, TrendingUp, BookOpen, Clock, BarChart2 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 
 export default function Statistics() {
     const { t } = useTranslation();
-    const { stats, updateDailyGoal, chapters, lore, characters } = useProject();
+    const { projectPath, stats, updateDailyGoal, chapters } = useProject();
     const [goalInput, setGoalInput] = useState(stats.dailyGoal.toString());
     const [isEditingGoal, setIsEditingGoal] = useState(false);
+
+    // Nouveaux états pour le volume global
+    const [chapterStats, setChapterStats] = useState<{ name: string, words: number }[]>([]);
+    const [totalManuscriptWords, setTotalManuscriptWords] = useState(0);
+
+    useEffect(() => {
+        let isCancelled = false;
+        const loadChapterStats = async () => {
+            const newStats = [];
+            let total = 0;
+            for (const chapter of chapters) {
+                try {
+                    const content: string = await invoke('read_file', {
+                        path: `${projectPath}/chapters/${chapter.id}`
+                    });
+                    const text = content.trim();
+                    const words = text ? text.split(/[\s\n\r]+/).filter(w => w.length > 0).length : 0;
+                    newStats.push({ name: chapter.title, words });
+                    total += words;
+                } catch (error) {
+                    console.error("Erreur read_file stats:", error);
+                    newStats.push({ name: chapter.title, words: 0 });
+                }
+            }
+            if (!isCancelled) {
+                setChapterStats(newStats);
+                setTotalManuscriptWords(total);
+            }
+        };
+        if (projectPath && chapters.length > 0) {
+            loadChapterStats();
+        } else {
+            setChapterStats([]);
+            setTotalManuscriptWords(0);
+        }
+        return () => { isCancelled = true; };
+    }, [projectPath, chapters]);
 
     const handleGoalSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,7 +75,6 @@ export default function Statistics() {
         });
     }
 
-    const totalItems = chapters.length + lore.length + characters.length;
 
     // Calcul de la moyenne sur les 14 jours
     const averageWords = Math.round(chartData.reduce((acc, curr) => acc + curr.words, 0) / 14);
@@ -108,12 +145,12 @@ export default function Statistics() {
                         <div className="absolute top-0 right-0 p-4 opacity-10">
                             <BookOpen className="w-16 h-16 text-emerald-500" />
                         </div>
-                        <h3 className="text-sm font-semibold text-gray-400 mb-4 uppercase tracking-wider">{t('statistics.projectVolume')}</h3>
+                        <h3 className="text-sm font-semibold text-gray-400 mb-4 uppercase tracking-wider">Volume du Manuscrit</h3>
                         <div className="flex items-end space-x-2">
-                            <span className="text-4xl font-bold text-white">{totalItems}</span>
-                            <span className="text-gray-500 mb-1">{t('statistics.filesCreated')}</span>
+                            <span className="text-4xl font-bold text-white">{totalManuscriptWords}</span>
+                            <span className="text-gray-500 mb-1">{t('statistics.words')}</span>
                         </div>
-                        <p className="mt-4 text-sm text-gray-500">{chapters.length} {t('statistics.chapters')}, {characters.length} {t('statistics.characters')}, {lore.length} {t('statistics.lore')}</p>
+                        <p className="mt-4 text-sm text-gray-500">Soit environ {Math.ceil(totalManuscriptWords / 250)} pages</p>
                     </div>
                 </div>
 
@@ -161,6 +198,52 @@ export default function Statistics() {
                         </ResponsiveContainer>
                     </div>
                 </div>
+
+                {/* Graphique de taille des chapitres */}
+                {chapterStats.length > 0 && (
+                    <div className="bg-gray-800/40 border border-gray-800 rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-lg font-semibold text-white flex items-center">
+                                <BarChart2 className="w-5 h-5 mr-3 text-emerald-400" />
+                                Longueur des Chapitres
+                            </h3>
+                        </div>
+
+                        <div className="h-64 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chapterStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorWords" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                                    <XAxis
+                                        dataKey="name"
+                                        stroke="#9ca3af"
+                                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tickFormatter={(value) => value.length > 10 ? value.substring(0, 10) + '...' : value}
+                                    />
+                                    <YAxis
+                                        stroke="#9ca3af"
+                                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff', borderRadius: '8px' }}
+                                        itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
+                                        labelStyle={{ color: '#9ca3af', marginBottom: '4px' }}
+                                    />
+                                    <Area type="monotone" dataKey="words" name="Mots" stroke="#10b981" fillOpacity={1} fill="url(#colorWords)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                )}
 
             </div>
         </div>
