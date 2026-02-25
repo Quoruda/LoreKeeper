@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrainCircuit, RefreshCw, Loader2, AlertTriangle, MessageSquare } from 'lucide-react';
+import { BrainCircuit, RefreshCw, Loader2, AlertTriangle, MessageSquare, MessageCircle, FileText, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
 import { invoke } from '@tauri-apps/api/core';
@@ -11,6 +11,13 @@ export default function AIPanel() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    type AITab = 'analysis' | 'suggestion';
+    const [activeTab, setActiveTab] = useState<AITab>('analysis');
+
+    const [isSuggesting, setIsSuggesting] = useState(false);
+    const [suggestionResult, setSuggestionResult] = useState<string | null>(null);
+    const [customPrompt, setCustomPrompt] = useState("");
 
     const isMistralReady = settings.aiProvider !== 'none' && settings.mistralApiKey;
     const currentNoteData = currentChapter ? aiNotes[currentChapter] : null;
@@ -101,8 +108,7 @@ INSTRUCTIONS STRICTES :
 5. Ne décris QUE ce qui relève de NOUVEAU dans ce chapitre pour ce titre. Si le personnage n'évolue pas, ne fais pas de note sur lui.
 6. Crée OBLIGATOIREMENT une note ayant exactement pour "title": "Événements du chapitre" qui résumera l'action brute principale en 2 ou 3 phrases.
 7. Sois extrêmement concis. Pas de longues phrases, va droit au but.
-7. Sois extrêmement concis. Pas de longues phrases, va droit au but.
-8. En plus des notes, tu DOIS rédiger un 'Avis Global' sur le chapitre (son rythme, ses incohérences s'il y en a, ses réussites, les culs-de-sacs narratifs). Donne une critique franche de 'bêta lecteur' en un seul paragraphe !
+8. En plus des notes, tu DOIS rédiger un 'Avis Global' sur le chapitre (son ambiance, ce qui fonctionne bien, l'évaluation de l'intrigue). Si tu repères une confusion mineure signale-le, mais l'avis doit prioritairement rester amical, encourageant et pertinent. Fais-le en un court paragraphe !
 
 Tu DOIS RÉPONDRE UNIQUEMENT avec un objet JSON strictement valide avec le format suivant:
 {
@@ -148,6 +154,88 @@ Tu DOIS RÉPONDRE UNIQUEMENT avec un objet JSON strictement valide avec le forma
         }
     };
 
+    const handleGenerateSuggestion = async (promptType: 'next' | 'character' | 'custom', customText?: string) => {
+        if (!projectPath || !currentChapter || !isMistralReady) return;
+
+        setIsSuggesting(true);
+        setError(null);
+        setSuggestionResult(null);
+
+        try {
+            const content = await invoke<string>('read_file', {
+                path: `${projectPath}/chapters/${currentChapter}`
+            });
+
+            if (!content.trim()) {
+                setError("Le chapitre est vide. Écrivez un peu avant de demander des suggestions !");
+                setIsSuggesting(false);
+                return;
+            }
+
+            // Historique RAG: Tous les chapitres d'AVANT
+            const aggregatedHistory: Record<string, string[]> = {};
+            if (currentIndex > 0) {
+                for (let i = 0; i < currentIndex; i++) {
+                    const chapId = chapters[i].id;
+                    const chapNotesData = aiNotes[chapId];
+                    if (chapNotesData && chapNotesData.notes) {
+                        chapNotesData.notes.forEach(note => {
+                            if (!aggregatedHistory[note.title]) {
+                                aggregatedHistory[note.title] = [];
+                            }
+                            aggregatedHistory[note.title].push(note.description);
+                        });
+                    }
+                }
+            }
+
+            let previousContext = "";
+            const historicalKeys = Object.keys(aggregatedHistory);
+            if (historicalKeys.length > 0) {
+                previousContext = `\n[CONTEXTE HISTORIQUE (RESUME DES CHAPITRES PRECEDENTS)]\n`;
+                historicalKeys.forEach(title => {
+                    previousContext += `- ${title} : ${aggregatedHistory[title].join(' ')}\n`;
+                });
+            }
+
+            let magicPrompt = "";
+            if (promptType === 'next') {
+                magicPrompt = "Que va-t-il se passer dans les secondes qui suivent la toute dernière phrase écrite ? Propose simplement 3 idées brèves (action logique, prise de parole, observation) en parfaite continuité avec l'instant présent. Pas de grands rebondissements ou d'événements extraordinaires.";
+            } else if (promptType === 'character') {
+                magicPrompt = "Comment un personnage (présent ou lié à ce chapitre) pourrait réagir à la situation actuelle d'une manière inattendue mais réaliste ?";
+            } else if (promptType === 'custom' && customText) {
+                magicPrompt = customText;
+            }
+
+            const systemInstruction = `Tu es l'assistant créatif d'un écrivain. Ton but est de l'aider à trouver des idées (brainstorming).
+Voici le contexte général de l'histoire jusqu'ici : ${previousContext}
+
+Voici le texte brut du chapitre qu'il est en TRAIN d'écrire :
+[TEXTE DU CHAPITRE ACTUEL]
+${content}
+
+INSTRUCTIONS : 
+- Réponds UNIQUEMENT à la question posée par l'auteur en te basant sur le [TEXTE DU CHAPITRE ACTUEL] et le [CONTEXTE HISTORIQUE].
+- Ne fais pas de JSON, réponds directement en Markdown formaté, proprement, de façon créative et pertinente.
+- SOIS EXTRÊMEMENT CONCIS. Ne fais jamais de longs paragraphes. Cible l'essentiel.
+- Ne rajoute pas d'introduction ("Voici des idées...") ou de conclusion.
+- Présente tes idées sous forme de liste à puces ou numérotée si c'est pertinent.`;
+
+            const response = await generateWithMistral(magicPrompt, settings, systemInstruction, 0.8); // température plus haute pour la créativité
+
+            if (response.error) {
+                setError(response.error);
+            } else {
+                setSuggestionResult(response.text);
+            }
+
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Erreur inattendue.");
+        } finally {
+            setIsSuggesting(false);
+        }
+    };
+
     return (
         <div className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col h-full shrink-0">
             {/* AI Header */}
@@ -169,100 +257,200 @@ Tu DOIS RÉPONDRE UNIQUEMENT avec un objet JSON strictement valide avec le forma
                     </div>
                 ) : (
                     <>
-                        {/* Avertissement de désynchronisation (Cascade) */}
-                        {isOutdated && (
-                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-4">
-                                <div className="flex items-start">
-                                    <AlertTriangle className="w-5 h-5 text-amber-500 mr-3 shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="text-xs font-medium text-amber-400 mb-1">{t('aipanel.syncWarningTitle') || 'Analyse Obsolète'}</p>
-                                        <p className="text-xs text-amber-500/70">{outdatedReason}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                                <p className="text-xs text-red-400">{error}</p>
-                            </div>
-                        )}
-
-                        {/* Action Button */}
-                        <div>
+                        {/* AI Tabs */}
+                        <div className="flex border-b border-gray-800 shrink-0">
                             <button
-                                onClick={handleUpdateAnalysis}
-                                disabled={isLoading}
-                                className="w-full flex items-center justify-center py-2.5 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 disabled:opacity-50 text-indigo-400 text-sm font-medium border border-indigo-500/30 rounded-lg transition-colors group"
+                                onClick={() => setActiveTab('analysis')}
+                                className={`flex-1 py-3 text-xs font-medium uppercase tracking-wider transition-colors border-b-2 ${activeTab === 'analysis' ? 'text-indigo-400 border-indigo-500 bg-gray-800/20' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
                             >
-                                {isLoading ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
-                                )}
-                                {isLoading ? "Analyse en cours..." : t('aipanel.updateAnalysis')}
+                                Analyse
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('suggestion')}
+                                className={`flex-1 py-3 text-xs font-medium uppercase tracking-wider transition-colors border-b-2 ${activeTab === 'suggestion' ? 'text-indigo-400 border-indigo-500 bg-gray-800/20' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
+                            >
+                                Suggestions
                             </button>
                         </div>
 
-                        {/* AI Notes */}
-                        {currentNoteData?.review && (
-                            <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-lg p-4 mb-2 shadow-inner">
-                                <h3 className="text-sm font-semibold text-indigo-300 mb-2 flex items-center">
-                                    <MessageSquare className="w-4 h-4 mr-2" />
-                                    Avis Critique
-                                </h3>
-                                <p className="text-sm text-indigo-100/80 italic leading-relaxed">
-                                    "{currentNoteData.review}"
-                                </p>
-                            </div>
-                        )}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                            {/* Avertissement de désynchronisation (Cascade) */}
+                            {isOutdated && activeTab === 'analysis' && (
+                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-4">
+                                    <div className="flex items-start">
+                                        <AlertTriangle className="w-5 h-5 text-amber-500 mr-3 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs font-medium text-amber-400 mb-1">{t('aipanel.syncWarningTitle') || 'Analyse Obsolète'}</p>
+                                            <p className="text-xs text-amber-500/70">{outdatedReason}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
-                        {currentNotes.length > 0 && (
-                            <div className="space-y-6">
-                                {/* Zone d'Action (Événements du chapitre) */}
-                                {(() => {
-                                    const actionNote = currentNotes.find(n => n.title.toLowerCase().includes('événement') || n.title.toLowerCase().includes('evenement'));
-                                    if (actionNote) {
-                                        return (
-                                            <div>
-                                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Dans ce chapitre</h3>
-                                                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 shadow-sm">
-                                                    <p className="text-sm text-indigo-200 leading-relaxed font-medium">{actionNote.description}</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                })()}
+                            {activeTab === 'analysis' ? (
+                                <>
 
-                                {/* Zone Lore & Personnages */}
-                                {(() => {
-                                    const loreNotes = currentNotes.filter(n => !n.title.toLowerCase().includes('événement') && !n.title.toLowerCase().includes('evenement'));
-                                    if (loreNotes.length > 0) {
-                                        return (
-                                            <div>
-                                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Nouvelles connaissances</h3>
-                                                <div className="space-y-3">
-                                                    {loreNotes.map((note, idx) => (
-                                                        <div key={idx} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 shadow-sm hover:border-gray-500/30 transition-colors">
-                                                            <h4 className="text-xs font-semibold text-gray-300 mb-1.5">{note.title}</h4>
-                                                            <p className="text-xs text-gray-400 leading-relaxed">{note.description}</p>
+                                    {error && (
+                                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                                            <p className="text-xs text-red-400">{error}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Action Button */}
+                                    <div>
+                                        <button
+                                            onClick={handleUpdateAnalysis}
+                                            disabled={isLoading}
+                                            className="w-full flex items-center justify-center py-2.5 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 disabled:opacity-50 text-indigo-400 text-sm font-medium border border-indigo-500/30 rounded-lg transition-colors group"
+                                        >
+                                            {isLoading ? (
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            ) : (
+                                                <RefreshCw className="w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                                            )}
+                                            {isLoading ? "Analyse en cours..." : t('aipanel.updateAnalysis')}
+                                        </button>
+                                    </div>
+
+                                    {/* AI Notes */}
+                                    {currentNoteData?.review && (
+                                        <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-lg p-4 mb-2 shadow-inner">
+                                            <h3 className="text-sm font-semibold text-indigo-300 mb-2 flex items-center">
+                                                <MessageSquare className="w-4 h-4 mr-2" />
+                                                Avis Critique
+                                            </h3>
+                                            <p className="text-sm text-indigo-100/80 italic leading-relaxed">
+                                                "{currentNoteData.review}"
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {currentNotes.length > 0 && (
+                                        <div className="space-y-6">
+                                            {/* Zone d'Action (Événements du chapitre) */}
+                                            {(() => {
+                                                const actionNote = currentNotes.find(n => n.title.toLowerCase().includes('événement') || n.title.toLowerCase().includes('evenement'));
+                                                if (actionNote) {
+                                                    return (
+                                                        <div>
+                                                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Dans ce chapitre</h3>
+                                                            <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 shadow-sm">
+                                                                <p className="text-sm text-indigo-200 leading-relaxed font-medium">{actionNote.description}</p>
+                                                            </div>
                                                         </div>
-                                                    ))}
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+
+                                            {/* Zone Lore & Personnages */}
+                                            {(() => {
+                                                const loreNotes = currentNotes.filter(n => !n.title.toLowerCase().includes('événement') && !n.title.toLowerCase().includes('evenement'));
+                                                if (loreNotes.length > 0) {
+                                                    return (
+                                                        <div>
+                                                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Nouvelles connaissances</h3>
+                                                            <div className="space-y-3">
+                                                                {loreNotes.map((note, idx) => (
+                                                                    <div key={idx} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 shadow-sm hover:border-gray-500/30 transition-colors">
+                                                                        <h4 className="text-xs font-semibold text-gray-300 mb-1.5">{note.title}</h4>
+                                                                        <p className="text-xs text-gray-400 leading-relaxed">{note.description}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+                                        </div>
+                                    )}
+
+                                    {currentNotes.length === 0 && !isLoading && !error && (
+                                        <p className="text-xs text-gray-500 text-center italic mt-4">
+                                            Aucune analyse générée pour ce chapitre.
+                                        </p>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {/* Suggestion Mode */}
+                                    <div className="space-y-4">
+                                        <p className="text-xs text-gray-400 leading-relaxed mb-6">
+                                            Besoin d'inspiration ? Je peux lire ce chapitre en cours avec le reste de vos archives et vous proposer des idées.
+                                        </p>
+
+                                        {error && (
+                                            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                                                <p className="text-xs text-red-400">{error}</p>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 gap-3">
+                                            <button
+                                                onClick={() => handleGenerateSuggestion('next')}
+                                                disabled={isSuggesting}
+                                                className="w-full text-left p-3 rounded-lg border border-indigo-500/20 bg-indigo-900/10 hover:bg-indigo-900/30 hover:border-indigo-500/40 transition-colors disabled:opacity-50 group flex items-start"
+                                            >
+                                                <MessageCircle className="w-5 h-5 text-indigo-400 mr-3 mt-0.5 shrink-0" />
+                                                <div>
+                                                    <h4 className="text-sm font-medium text-indigo-300">Et ensuite ?</h4>
+                                                    <p className="text-xs text-indigo-200/60 mt-1">Imagine 3 pistes pour la suite directe de l'histoire.</p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleGenerateSuggestion('character')}
+                                                disabled={isSuggesting}
+                                                className="w-full text-left p-3 rounded-lg border border-emerald-500/20 bg-emerald-900/10 hover:bg-emerald-900/30 hover:border-emerald-500/40 transition-colors disabled:opacity-50 group flex items-start"
+                                            >
+                                                <FileText className="w-5 h-5 text-emerald-400 mr-3 mt-0.5 shrink-0" />
+                                                <div>
+                                                    <h4 className="text-sm font-medium text-emerald-300">Réaction des persos</h4>
+                                                    <p className="text-xs text-emerald-200/60 mt-1">Comment pourraient réagir les personnages à cette situation ?</p>
+                                                </div>
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-4 pt-4 border-t border-gray-800 space-y-3">
+                                            <h4 className="text-sm font-medium text-gray-400">Demande libre</h4>
+                                            <div className="flex flex-col gap-2">
+                                                <textarea
+                                                    value={customPrompt}
+                                                    onChange={e => setCustomPrompt(e.target.value)}
+                                                    placeholder="Posez une question à l'IA (ex: Comment introduire un nouveau personnage ici ?)..."
+                                                    className="w-full bg-gray-900/50 border border-gray-700/50 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-500/70 outline-none focus:border-indigo-500/50 transition-colors resize-none h-24 shadow-inner"
+                                                />
+                                                <button
+                                                    onClick={() => handleGenerateSuggestion('custom', customPrompt)}
+                                                    disabled={isSuggesting || !customPrompt.trim()}
+                                                    className="w-full flex items-center justify-center py-2.5 px-4 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-sm font-medium rounded-lg transition-colors border border-gray-700 hover:border-gray-500"
+                                                >
+                                                    <Send className="w-4 h-4 mr-2" />
+                                                    Envoyer la demande
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {isSuggesting && (
+                                            <div className="flex flex-col items-center justify-center p-8 text-indigo-400">
+                                                <Loader2 className="w-6 h-6 animate-spin mb-3" />
+                                                <span className="text-sm font-medium">Réflexion scénaristique...</span>
+                                                <span className="text-xs text-indigo-400/60 mt-2 text-center">Cela peut prendre jusqu'à 20 secondes selon la taille de votre univers.</span>
+                                            </div>
+                                        )}
+
+                                        {suggestionResult && !isSuggesting && (
+                                            <div className="bg-gray-800/80 border border-gray-700/80 rounded-lg p-5 mt-6 shadow-inner">
+                                                <div className="prose prose-invert prose-sm max-w-none text-gray-300 leading-relaxed whitespace-pre-wrap">
+                                                    {suggestionResult}
                                                 </div>
                                             </div>
-                                        );
-                                    }
-                                    return null;
-                                })()}
-                            </div>
-                        )}
-
-                        {currentNotes.length === 0 && !isLoading && !error && (
-                            <p className="text-xs text-gray-500 text-center italic mt-4">
-                                Aucune analyse générée pour ce chapitre.
-                            </p>
-                        )}
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </>
                 )}
             </div>
