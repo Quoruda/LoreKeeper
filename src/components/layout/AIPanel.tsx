@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrainCircuit, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
+import { BrainCircuit, RefreshCw, Loader2, AlertTriangle, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
 import { invoke } from '@tauri-apps/api/core';
@@ -101,9 +101,12 @@ INSTRUCTIONS STRICTES :
 5. Ne décris QUE ce qui relève de NOUVEAU dans ce chapitre pour ce titre. Si le personnage n'évolue pas, ne fais pas de note sur lui.
 6. Crée OBLIGATOIREMENT une note ayant exactement pour "title": "Événements du chapitre" qui résumera l'action brute principale en 2 ou 3 phrases.
 7. Sois extrêmement concis. Pas de longues phrases, va droit au but.
+7. Sois extrêmement concis. Pas de longues phrases, va droit au but.
+8. En plus des notes, tu DOIS rédiger un 'Avis Global' sur le chapitre (son rythme, ses incohérences s'il y en a, ses réussites, les culs-de-sacs narratifs). Donne une critique franche de 'bêta lecteur' en un seul paragraphe !
 
 Tu DOIS RÉPONDRE UNIQUEMENT avec un objet JSON strictement valide avec le format suivant:
 {
+  "review": "Ton avis global et critique sur ce chapitre...",
   "notes": [
     { "title": "Nom du Sujet (Personnage, Ville, Objet) ou 'Événements du chapitre'", "description": "Ce qu'on a appris de nouveau à ce sujet dans ce chapitre." }
   ]
@@ -128,7 +131,7 @@ Tu DOIS RÉPONDRE UNIQUEMENT avec un objet JSON strictement valide avec le forma
 
                 const parsed = JSON.parse(jsonStr);
                 if (parsed.notes && Array.isArray(parsed.notes)) {
-                    await saveAiNotes(currentChapter, parsed.notes);
+                    await saveAiNotes(currentChapter, parsed.notes, parsed.review);
                     setError(null);
                 } else {
                     setError("Format de réponse inattendu de l'IA.");
@@ -202,6 +205,18 @@ Tu DOIS RÉPONDRE UNIQUEMENT avec un objet JSON strictement valide avec le forma
                         </div>
 
                         {/* AI Notes */}
+                        {currentNoteData?.review && (
+                            <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-lg p-4 mb-2 shadow-inner">
+                                <h3 className="text-sm font-semibold text-indigo-300 mb-2 flex items-center">
+                                    <MessageSquare className="w-4 h-4 mr-2" />
+                                    Avis Critique
+                                </h3>
+                                <p className="text-sm text-indigo-100/80 italic leading-relaxed">
+                                    "{currentNoteData.review}"
+                                </p>
+                            </div>
+                        )}
+
                         {currentNotes.length > 0 && (
                             <div className="space-y-6">
                                 {/* Zone d'Action (Événements du chapitre) */}

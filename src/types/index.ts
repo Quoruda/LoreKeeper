@@ -50,6 +50,7 @@ export interface AINote {
 
 export interface AINoteData {
     notes: AINote[];
+    review?: string;
     updatedAt: number;
 }
 

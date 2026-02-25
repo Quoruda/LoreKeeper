@@ -12,7 +12,7 @@ interface ProjectContextType {
     stats: ProjectStats;
     settings: ProjectSettings;
     aiNotes: AINotesRegistry;
-    saveAiNotes: (chapterId: string, notes: AINote[]) => Promise<void>;
+    saveAiNotes: (chapterId: string, notes: AINote[], review?: string) => Promise<void>;
     refreshFiles: () => Promise<void>;
     createItem: (title: string, mode: ViewMode) => Promise<void>;
     renameItem: (id: string, newTitle: string, mode: ViewMode) => Promise<void>;
@@ -334,9 +334,9 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
         await saveSettings(updatedSettings);
     }, [settings, saveSettings]);
 
-    const saveAiNotes = useCallback(async (chapterId: string, notes: AINote[]) => {
+    const saveAiNotes = useCallback(async (chapterId: string, notes: AINote[], review?: string) => {
         setAiNotes(prev => {
-            const newAiNotes = { ...prev, [chapterId]: { notes, updatedAt: Date.now() } };
+            const newAiNotes = { ...prev, [chapterId]: { notes, review, updatedAt: Date.now() } };
             invoke('write_file', {
                 path: `${projectPath}/ainotes.json`,
                 content: JSON.stringify(newAiNotes, null, 2)
