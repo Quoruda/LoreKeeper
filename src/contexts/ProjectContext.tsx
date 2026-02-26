@@ -413,6 +413,7 @@ export function ProjectProvider({ children, projectPath, onCloseProject }: { chi
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useProject() {
     const context = useContext(ProjectContext);
     if (context === undefined) {
