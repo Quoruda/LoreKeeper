@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
+import Typography from '@tiptap/extension-typography';
+import { DialogueHighlight } from './DialogueHighlight';
 import { Bold, Italic, List, ListOrdered, Quote, Heading1, Heading2, Heading3 } from 'lucide-react';
 
 export default function MainEditor() {
@@ -34,6 +36,13 @@ export default function MainEditor() {
         extensions: [
             StarterKit,
             Markdown,
+            Typography.configure({
+                openDoubleQuote: '«\u00A0', // Espace insécable
+                closeDoubleQuote: '\u00A0»',
+                openSingleQuote: '‹\u00A0',
+                closeSingleQuote: '\u00A0›',
+            }),
+            DialogueHighlight,
         ],
         content: '',
         editorProps: {
